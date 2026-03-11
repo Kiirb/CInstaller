@@ -58,7 +58,9 @@ void CopyDirectory(string sourceDir, string destinationDir)
 void DownloadBase(string dest, string repoOwner, string repoName, string pattern)
 {
     string url = FindLatestGithubDownloadAsset(repoOwner, repoName, pattern);
-    DownloadFile(url, dest);
+    string filePath = DownloadFile(url, dest);
+	
+	if file
 }
 
 string FindLatestGithubDownloadAsset(string repoOwner, string repoName, string searchPattern)
@@ -92,7 +94,7 @@ string FindLatestGithubDownloadAsset(string repoOwner, string repoName, string s
 }
 
 
-void DownloadFile(string url, string outputPath)
+string DownloadFile(string url, string outputPath)
 {
     using var client = new HttpClient();
 
@@ -104,4 +106,6 @@ void DownloadFile(string url, string outputPath)
     using var file = File.Create(outputFile);
 
     stream.CopyTo(file);
+    
+    return outputFile;
 }
