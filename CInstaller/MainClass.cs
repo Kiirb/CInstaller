@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -5,9 +6,9 @@ using Microsoft.Win32;
 namespace CInstaller;
 
 public static class MainClass{
-    static void Main()
+    private static void Main()
     {
-        string steamPath = (string)Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null );
+        var steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
 
         if (string.IsNullOrEmpty(steamPath))
         {
@@ -20,10 +21,11 @@ public static class MainClass{
     string gameManifest = Path.Join(steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
     */
 
-        string gameName = "Among us"; //Get from manifest later
-        string steamCommon = Path.Join(steamPath, "steamapps", "common");
-        string gameFolder = Path.Join(steamCommon, gameName);
-        string moddedFolder = Path.Join(steamCommon, gameName + " Modded");
+        const string gameName = "Among us"; //Get from manifest later
+        var steamCommon = Path.Join(steamPath, "steamapps", "common");
+        var gameFolder = Path.Join(steamCommon, gameName);
+        var moddedFolder = Path.Join(steamCommon, gameName + " Modded");
+        var moddedExeFilePath = Path.Join(moddedFolder, gameName + ".exe");
 
         Console.Out.WriteLine(gameFolder);
         
@@ -36,38 +38,91 @@ public static class MainClass{
         CopyDirectory(gameFolder, moddedFolder);
 
         DownloadBase(moddedFolder, "AU-Avengers", "TOU-Mira", "-steam-itch.zip");
+        
+        var pluginFolder = Path.Join(moddedFolder, "BepinEx", "plugins");
+        if (!Directory.Exists(pluginFolder))
+        {
+            Console.Write(pluginFolder + " not found");
+            return;
+        }
+        
+        DownloadBase(pluginFolder, "SubmergedAmongUs", "Submerged", ".dll");
+        DownloadBase(pluginFolder, "DigiWorm0", "LevelImposter", ".dll");
+        DownloadBase(pluginFolder, "rewalo", "TownOfUsMiraRolesExtension", ".dll");
+        DownloadBase(pluginFolder, "xChipseq", "ModExplorer", ".dll");
+
+
+        if (File.Exists(Path.Join(pluginFolder, "AUnlocker.dll"))) DownloadBase(pluginFolder, "astra1dev", "AUnlocker", ".*.dll");
+        if (!File.Exists(moddedExeFilePath)) return;
+        
+        var currentSteamUserId = SteamShortcutManager.FindCurrentSteamUserId(steamPath);
+        var iconPath = GetCustomAssets(steamPath, currentSteamUserId);
+        SteamShortcutManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
+        
+        RestartSteam(steamPath);
     }
 
-    static void CopyDirectory(string sourceDir, string destinationDir)
+    private static string GetCustomAssets(string steamPath, long currentSteamUserId)
+    {
+        var gridFolderPath = Path.Join(steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
+        const string steamGridId = "4294662226"; //only if game id is -305070
+        List<(string url, string fileEnding)> assets =
+        [
+            ("https://cdn2.steamgriddb.com/grid/24330531679f7fd5318e3e9dde4e1c99.png", "p.png"),
+            ("https://drive.google.com/uc?export=download&id=1zBoSGPPpe-wZW3CxGB-DFCWs6_rqUcY0", "_hero.png"),
+            ("https://drive.google.com/uc?export=download&id=186kqfm7WA5jPnSr5A-jiiAjPcxS7GNKl", "_logo.png")
+        ];
+
+        foreach (var asset in assets)
+        {
+            var grid = DownloadFile(asset.url, gridFolderPath);
+            var renamedGrid = Path.Join(gridFolderPath, steamGridId + asset.fileEnding);
+            File.Move(grid,  renamedGrid, true);
+        }
+
+        return DownloadFile("https://cdn2.steamgriddb.com/icon/588bc7654c8815a85a09b0bc6d82a29f.png", gridFolderPath); //Icon
+    }
+
+    private static void RestartSteam(string steamPath)
+    {
+        var steamExe = Path.Combine(steamPath, "steam.exe");
+
+        if (!File.Exists(steamExe)) return;
+
+        Process.Start(steamExe, "-shutdown");
+        Thread.Sleep(3000);
+        Process.Start(steamExe);
+    }
+
+    private static void CopyDirectory(string sourceDir, string destinationDir)
     {
         Directory.CreateDirectory(destinationDir);
 
-        foreach (string file in Directory.GetFiles(sourceDir))
+        foreach (var file in Directory.GetFiles(sourceDir))
         {
-            string destFile = Path.Combine(destinationDir, Path.GetFileName(file));
+            var destFile = Path.Combine(destinationDir, Path.GetFileName(file));
             File.Copy(file, destFile, true);
         }
 
-        foreach (string directory in Directory.GetDirectories(sourceDir))
+        foreach (var directory in Directory.GetDirectories(sourceDir))
         {
-            string destDir = Path.Combine(destinationDir, Path.GetFileName(directory));
+            var destDir = Path.Combine(destinationDir, Path.GetFileName(directory));
             CopyDirectory(directory, destDir);
         }
     }
 
-    static void DownloadBase(string dest, string repoOwner, string repoName, string pattern)
+    private static void DownloadBase(string dest, string repoOwner, string repoName, string pattern)
     {
-        string url = FindLatestGithubDownloadAsset(repoOwner, repoName, pattern);
-        string filePath = DownloadFile(url, dest);
+        var url = FindLatestGithubDownloadAsset(repoOwner, repoName, pattern);
+        var filePath = DownloadFile(url, dest);
 
-        if (File.Exists(filePath) && Path.GetExtension(filePath) == ".zip")
-        {
-            ExtractZip(filePath, dest);
-            File.Delete(filePath);
-        }
+        if (!File.Exists(filePath) || Path.GetExtension(filePath) != ".zip") return;
+        
+        ExtractZip(filePath, dest);
+        File.Delete(filePath);
     }
 
-    static void ExtractZip(string zipPath, string extractPath)
+    private static void ExtractZip(string zipPath, string extractPath)
     {
         using var archive = ZipFile.OpenRead(zipPath);
 
@@ -77,18 +132,18 @@ public static class MainClass{
             .Distinct()
             .ToList();
 
-        bool singleRootFolder =
+        var singleRootFolder =
             roots.Count == 1 &&
             archive.Entries.All(e => e.FullName.StartsWith(roots[0] + "/"));
 
         foreach (var entry in archive.Entries)
         {
-            string relativePath = entry.FullName;
+            var relativePath = entry.FullName;
 
             if (singleRootFolder)
             {
                 // Remove the root folder from the path
-                relativePath = relativePath.Substring(roots[0].Length).TrimStart('/');
+                relativePath = relativePath[roots[0]!.Length..].TrimStart('/');
             }
 
             if (string.IsNullOrEmpty(relativePath))
@@ -107,46 +162,43 @@ public static class MainClass{
 
 
 
-    static string FindLatestGithubDownloadAsset(string repoOwner, string repoName, string searchPattern)
+    private static string FindLatestGithubDownloadAsset(string repoOwner, string repoName, string searchPattern)
     {
-        string githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases/latest";
+        var githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
 
         using var client = new HttpClient();
         client.DefaultRequestHeaders.UserAgent.ParseAdd("CSharpApp");
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
         var response = client.GetAsync(githubUrl).Result;
         response.EnsureSuccessStatusCode();
 
-        string json = response.Content.ReadAsStringAsync().Result;
+        var json = response.Content.ReadAsStringAsync().Result;
 
 
-        List<(string Name, string Url)> assetsList = new();
+        List<(string Name, string Url)> assetsList = [];
 
         using var doc = JsonDocument.Parse(json);
 
-        JsonElement assets = doc.RootElement.GetProperty("assets");
+        var assets = doc.RootElement[0].GetProperty("assets");
 
-        foreach (var asset in assets.EnumerateArray())
-        {
-            string name = asset.GetProperty("name").GetString();
-            string url = asset.GetProperty("browser_download_url").GetString();
-
-            assetsList.Add((name, url));
-        }
+        assetsList.AddRange(from asset in assets.EnumerateArray() let name = asset.GetProperty("name").GetString() let url = asset.GetProperty("browser_download_url").GetString() select (name, url));
         
         return assetsList.FirstOrDefault(a => a.Name.Contains(searchPattern)).Url;
     }
 
 
-    static string DownloadFile(string url, string outputPath)
+    private static string DownloadFile(string url, string outputPath)
     {
         using var client = new HttpClient();
 
         var response = client.GetAsync(url).Result;
         response.EnsureSuccessStatusCode();
+        
+        var filename = response.Content.Headers.ContentDisposition?.FileName ?? Path.GetFileName(url);
 
         using var stream = response.Content.ReadAsStreamAsync().Result;
-        string outputFile = Path.Join(outputPath, Path.GetFileName(url));
+        string outputFile = Path.Join(outputPath, filename);
         using var file = File.Create(outputFile);
 
         stream.CopyTo(file);
