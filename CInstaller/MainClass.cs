@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.IO;
 using System.IO.Compression;
+using System.Net.Http;
 using System.Text.Json;
+using System.Windows;
 using Microsoft.Win32;
 
 namespace CInstaller;
@@ -9,17 +12,17 @@ public static class MainClass{
     private static void Main()
     {
         var steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
-
+        
         if (string.IsNullOrEmpty(steamPath))
         {
             Console.WriteLine("Steam not found");
             return;
         }
         
-        /*
-    string steamGameId = "945360";
-    string gameManifest = Path.Join(steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
-    */
+            /*
+        string steamGameId = "945360";
+        string gameManifest = Path.Join(steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
+        */
 
         const string gameName = "Among us"; //Get from manifest later
         var steamCommon = Path.Join(steamPath, "steamapps", "common");
@@ -28,13 +31,13 @@ public static class MainClass{
         var moddedExeFilePath = Path.Join(moddedFolder, gameName + ".exe");
 
         Console.Out.WriteLine(gameFolder);
-        
+
         if (!Directory.Exists(gameFolder))
         {
             Console.Write(gameFolder + " not found");
             return;
         }
-        
+
         CopyDirectory(gameFolder, moddedFolder);
 
         DownloadBase(moddedFolder, "AU-Avengers", "TOU-Mira", "-steam-itch.zip");
@@ -45,21 +48,20 @@ public static class MainClass{
             Console.Write(pluginFolder + " not found");
             return;
         }
-        
+
         DownloadBase(pluginFolder, "SubmergedAmongUs", "Submerged", ".dll");
         DownloadBase(pluginFolder, "DigiWorm0", "LevelImposter", ".dll");
         DownloadBase(pluginFolder, "rewalo", "TownOfUsMiraRolesExtension", ".dll");
         DownloadBase(pluginFolder, "xChipseq", "ModExplorer", ".dll");
 
-
-        if (File.Exists(Path.Join(pluginFolder, "AUnlocker.dll"))) DownloadBase(pluginFolder, "astra1dev", "AUnlocker", ".*.dll");
-        if (!File.Exists(moddedExeFilePath)) return;
+        if (File.Exists(Path.Join(pluginFolder, "AUnlocker.dll"))) DownloadBase(pluginFolder, "astra1dev", "AUnlocker", ".dll");
+        if (!File.Exists(moddedExeFilePath) || string.IsNullOrEmpty(steamPath)) return;
         
         var currentSteamUserId = SteamShortcutManager.FindCurrentSteamUserId(steamPath);
         var iconPath = GetCustomAssets(steamPath, currentSteamUserId);
-        SteamShortcutManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
+        var addedShortcut = SteamShortcutManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
         
-        RestartSteam(steamPath);
+        if (addedShortcut) RestartSteam(steamPath);
     }
 
     private static string GetCustomAssets(string steamPath, long currentSteamUserId)
@@ -85,6 +87,8 @@ public static class MainClass{
 
     private static void RestartSteam(string steamPath)
     {
+        if (!SteamShortcutManager.IsSteamRunning()) return;
+        
         var steamExe = Path.Combine(steamPath, "steam.exe");
 
         if (!File.Exists(steamExe)) return;
@@ -174,8 +178,7 @@ public static class MainClass{
         response.EnsureSuccessStatusCode();
 
         var json = response.Content.ReadAsStringAsync().Result;
-
-
+        
         List<(string Name, string Url)> assetsList = [];
 
         using var doc = JsonDocument.Parse(json);
@@ -195,10 +198,10 @@ public static class MainClass{
         var response = client.GetAsync(url).Result;
         response.EnsureSuccessStatusCode();
         
-        var filename = response.Content.Headers.ContentDisposition?.FileName ?? Path.GetFileName(url);
+        var filename = response.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? Path.GetFileName(url);
 
         using var stream = response.Content.ReadAsStreamAsync().Result;
-        string outputFile = Path.Join(outputPath, filename);
+        var outputFile = Path.Join(outputPath, filename);
         using var file = File.Create(outputFile);
 
         stream.CopyTo(file);

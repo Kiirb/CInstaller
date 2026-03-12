@@ -52,8 +52,6 @@ public class SteamShortcutManager
 
     public static string FindShortcutsFile(string steamPath, long currentSteamUserId)
     {
-        Console.WriteLine(currentSteamUserId);
-
         string shortcutFile = Path.Combine(
             steamPath,
             "userdata",
@@ -80,21 +78,6 @@ public class SteamShortcutManager
         using var stream = File.Open(path, FileMode.Create);
         var writer = new BinVdfWriter(stream);
         writer.WriteDict(map);
-    }
-
-    public static long ComputeAppId(string exePath, string appName)
-    {
-        string input = exePath + appName;
-
-        var crc = new Crc32();
-        crc.Append(Encoding.UTF8.GetBytes(input));
-
-        byte[] hash = crc.GetCurrentHash();
-        uint crcValue = BitConverter.ToUInt32(hash);
-
-        long appId = crcValue | 0x80000000L;
-
-        return appId;
     }
 
     private static void ClearVdfFile(Dictionary<string, object> rootMap)
@@ -176,10 +159,9 @@ public class SteamShortcutManager
     {
         string shortcutVdfFile = FindShortcutsFile(steamPath, currentSteamUserId);
 
-        Console.WriteLine(shortcutVdfFile);
-
         var rootMap = ParseShortcuts(shortcutVdfFile);
 
+        ClearVdfFile(rootMap);
         if (!ShortcutExists(rootMap, newGameFolderPath, newGameExePath))
         {
             AddNewGameMap(rootMap, newGameFolderPath, newGameExePath, icon);
