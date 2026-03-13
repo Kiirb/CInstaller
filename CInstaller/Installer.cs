@@ -22,24 +22,30 @@ public static partial class Installer
         
         _steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
         
-        var libaryFolderFile = Path.Join(_steamPath, "steamapps", "libraryfolders.vdf");
-        var vdfText = await File.ReadAllTextAsync(libaryFolderFile);
-        var matches = Regex.Matches(vdfText, "\"(\\d+)\"\\s+\"[\\d]+\"");
+        const string steamGameId = "945360";
+        const string gameName = "Among us";
+        string steamOrigin = "";
         
-        string steamGameLibary;
+        
+        var libaryFolderFile = Path.Join(_steamPath, "steamapps", "libraryfolders.vdf");
+        var regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
 
-        foreach (Match match in matches)
+        foreach (Match lib in regex.Matches(File.ReadAllText(libaryFolderFile)))
         {
-            var appId = match.Groups[1].Value;
-            Console.WriteLine(appId);
+            var path = lib.Groups[1].Value.Replace("\\\\", "\\");
+            var appsBlock = lib.Groups[2].Value;
+
+            if (Regex.IsMatch(appsBlock, $"\"{steamGameId}\""))
+            {
+                steamOrigin = path;
+            }
         }
         
-        const string steamGameId = "945360";
-        var gameManifest = Path.Join(_steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
-
-        const string gameName = "Among us";
+        if (string.IsNullOrEmpty(steamOrigin)) return;
         
-        var steamCommon = Path.Join(_steamPath, "steamapps", "common");
+        //var gameManifest = Path.Join(_steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
+        
+        var steamCommon = Path.Join(steamOrigin, "steamapps", "common");
         var gameFolder = Path.Join(steamCommon, gameName);
         var moddedFolder = Path.Join(steamCommon, gameName + " Modded");
         var moddedExeFilePath = Path.Join(moddedFolder, gameName + ".exe");
