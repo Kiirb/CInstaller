@@ -12,4 +12,16 @@
       <PackageReference Include="System.IO.Hashing" Version="10.0.4" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ApplicationDefinition Include="ui\App.xaml">
+        <Generator>MSBuild:Compile</Generator>
+        <XamlRuntime>Wpf</XamlRuntime>
+        <SubType>Designer</SubType>
+      </ApplicationDefinition>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Page Include="ui\App.xaml" />
+    </ItemGroup>
+
 </Project>
