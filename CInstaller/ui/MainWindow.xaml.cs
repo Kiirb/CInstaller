@@ -39,19 +39,33 @@ public partial class MainWindow
         EnableDarkTitleBar();
         
         var reporter = new ProgressReporter(progressBar, statusLabel);
-
+        
         await Task.Run(() => Installer.RunInstaller(reporter));
 
         statusLabel.Content = "Installation complete!";
         progressBar.Value = 100;
 
-        MessageBox.Show(
-            "Installation completed successfully!",
-            "Installer",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information
-        );
+        if (Installer.RestartSteamFlag)
+        {
+            var result = MessageBox.Show(
+                "Steam Muss neu gestartet werden um alle änderungen zu übernehmen\n\nJetzt neustarten?",
+                "Confirmation",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Question
+            );
 
+            if (result == MessageBoxResult.OK) Installer.RestartSteam();
+        }
+        else
+        {
+            MessageBox.Show(
+                "Installation completed successfully!",
+                "Installer",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information
+            );
+        }
+        
         Application.Current.Shutdown();
     }
 }

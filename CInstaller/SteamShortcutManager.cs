@@ -1,39 +1,34 @@
-using System;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO.Hashing;
 
-public class SteamShortcutManager
+namespace CInstaller;
+
+public static class SteamShortcutManager
 {
-    private const long STEAM_ID_64_BASE = 76561197960265728L;
+    private const long SteamId64Base = 76561197960265728L;
 
-    public static string FindSteamPath(string gamePath)
+    public static string FindSteamPathFromGame(string gamePath)
     {
-        var steamFolder = Directory.GetParent(gamePath).Parent.Parent;
+        var steamFolder = Directory.GetParent(gamePath)?.Parent?.Parent;
 
-        if (steamFolder.Name.Equals("Steam", StringComparison.OrdinalIgnoreCase))
+        if (steamFolder != null && steamFolder.Name.Equals("Steam", StringComparison.OrdinalIgnoreCase))
         {
             return steamFolder.FullName;
         }
-        else
-        {
-            Console.WriteLine($"SteamShortcutManager: findSteamPath: {steamFolder}");
-            return null;
-        }
+        
+        Console.WriteLine($"SteamShortcutManager: findSteamPath: {steamFolder}");
+        return null!;
     }
 
     public static long FindCurrentSteamUserId(string steamPath)
     {
-        string loginVdfFile = Path.Combine(steamPath, "config", "loginusers.vdf");
+        var loginVdfFile = Path.Combine(steamPath, "config", "loginusers.vdf");
 
         if (!File.Exists(loginVdfFile))
-            throw new ArgumentException("SteamShortcutManager: loginusers.vdf not found");
+            throw new ArgumentException("SteamShortcutManager: login users.vdf not found");
 
-        string content = File.ReadAllText(loginVdfFile);
+        var content = File.ReadAllText(loginVdfFile);
 
         var userBlock = new Regex(
             "\"(\\d{17})\"\\s*\\{[^}]*?\"MostRecent\"\\s*\"1\"",
@@ -45,35 +40,26 @@ public class SteamShortcutManager
         if (!match.Success)
             throw new Exception("No logged-in Steam user found");
 
-        long steamId64 = long.Parse(match.Groups[1].Value);
+        var steamId64 = long.Parse(match.Groups[1].Value);
 
-        return steamId64 - STEAM_ID_64_BASE;
+        return steamId64 - SteamId64Base;
     }
 
-    public static string FindShortcutsFile(string steamPath, long currentSteamUserId)
+    private static string FindShortcutsFile(string steamPath, long currentSteamUserId)
     {
-        string shortcutFile = Path.Combine(
-            steamPath,
-            "userdata",
-            currentSteamUserId.ToString(),
-            "config",
-            "shortcuts.vdf"
-        );
+        var shortcutFile = Path.Combine(steamPath, "userdata", currentSteamUserId.ToString(), "config", "shortcuts.vdf");
 
-        if (File.Exists(shortcutFile))
-            return shortcutFile;
-
-        throw new ArgumentException("SteamShortcutManager: shortcuts.vdf not found");
+        return File.Exists(shortcutFile) ? shortcutFile : throw new ArgumentException("SteamShortcutManager: shortcuts.vdf not found");
     }
 
-    public static Dictionary<string, object> ParseShortcuts(string path)
+    private static Dictionary<string, object> ParseShortcuts(string path)
     {
         using var stream = File.OpenRead(path);
         var reader = new BinVdfReader(stream);
         return reader.ReadDict();
     }
 
-    public static void SaveShortcuts(string path, Dictionary<string, object> map)
+    private static void SaveShortcuts(string path, Dictionary<string, object> map)
     {
         using var stream = File.Open(path, FileMode.Create);
         var writer = new BinVdfWriter(stream);
@@ -86,16 +72,12 @@ public class SteamShortcutManager
         shortcutMap.Clear();
     }
 
-    private static void AddNewGameMap(
-        Dictionary<string, object> rootMap,
-        string newGameFolderPath,
-        string newGameExePath,
-        string icon)
+    private static void AddNewGameMap(Dictionary<string, object> rootMap, string newGameFolderPath, string newGameExePath, string icon)
     {
         var shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
 
-        int nextIndex = shortcutMap.Count;
-        string key = nextIndex.ToString();
+        var nextIndex = shortcutMap.Count;
+        var key = nextIndex.ToString();
 
         var newGameShortcut = new Dictionary<string, object>();
 
@@ -126,27 +108,24 @@ public class SteamShortcutManager
         return Process.GetProcessesByName("steam").Length > 0;
     }
 
-    public static bool ShortcutExists(Dictionary<string, object> rootMap, string newGameFolderPath, string newGameExePath)
+    private static bool ShortcutExists(Dictionary<string, object> rootMap, string newGameFolderPath, string newGameExePath)
     {
         var shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
 
         foreach (var value in shortcutMap.Values)
         {
             var game = (Dictionary<string, object>)value;
-
-            string exeRaw = game.ContainsKey("Exe") ? game["Exe"]?.ToString() : null;
-            string dirRaw = game.ContainsKey("StartDir") ? game["StartDir"]?.ToString() : null;
+            
+            var exeRaw = game.ContainsKey("Exe") ? game["Exe"].ToString() : null;
+            var dirRaw = game.ContainsKey("StartDir") ? game["StartDir"].ToString() : null;
 
             if (exeRaw == null || dirRaw == null)
                 continue;
 
             exeRaw = exeRaw.Replace("\"", "");
 
-            string existingExe = Path.GetFullPath(exeRaw);
-            string existingDir = Path.GetFullPath(dirRaw);
-
-            if (existingExe.Equals(newGameExePath, StringComparison.OrdinalIgnoreCase) ||
-                existingDir.Equals(newGameFolderPath, StringComparison.OrdinalIgnoreCase))
+            if (exeRaw.Equals(newGameExePath, StringComparison.OrdinalIgnoreCase) ||
+                dirRaw.Equals(newGameFolderPath, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -157,11 +136,10 @@ public class SteamShortcutManager
 
     public static bool AddShortcut(string steamPath, string newGameFolderPath, string newGameExePath, string icon, long currentSteamUserId)
     {
-        string shortcutVdfFile = FindShortcutsFile(steamPath, currentSteamUserId);
+        var shortcutVdfFile = FindShortcutsFile(steamPath, currentSteamUserId);
 
         var rootMap = ParseShortcuts(shortcutVdfFile);
-
-        ClearVdfFile(rootMap);
+        
         if (!ShortcutExists(rootMap, newGameFolderPath, newGameExePath))
         {
             AddNewGameMap(rootMap, newGameFolderPath, newGameExePath, icon);

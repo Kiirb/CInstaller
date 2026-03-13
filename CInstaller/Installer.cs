@@ -3,34 +3,43 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
+using Gameloop.Vdf;
 
 namespace CInstaller;
 
-public static class Installer
+public static partial class Installer
 {
     private static ProgressReporter? _progress;
-    private static readonly HttpClient _httpClient = new();
+    private static readonly HttpClient HttpClient = new();
+    private static string? _steamPath;
+    public static bool RestartSteamFlag = false;
     
     public static async Task RunInstaller(ProgressReporter progress)
     {
         _progress = progress;
         
-        var steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
+        _steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
         
-        if (string.IsNullOrEmpty(steamPath))
+        var libaryFolderFile = Path.Join(_steamPath, "steamapps", "libraryfolders.vdf");
+        var vdfText = await File.ReadAllTextAsync(libaryFolderFile);
+        var matches = Regex.Matches(vdfText, "\"(\\d+)\"\\s+\"[\\d]+\"");
+        
+        string steamGameLibary;
+
+        foreach (Match match in matches)
         {
-            Console.WriteLine("Steam not found");
-            return;
+            var appId = match.Groups[1].Value;
+            Console.WriteLine(appId);
         }
         
-            /*
-        string steamGameId = "945360";
-        string gameManifest = Path.Join(steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
-        */
+        const string steamGameId = "945360";
+        var gameManifest = Path.Join(_steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
 
-        const string gameName = "Among us"; //Get from manifest later
-        var steamCommon = Path.Join(steamPath, "steamapps", "common");
+        const string gameName = "Among us";
+        
+        var steamCommon = Path.Join(_steamPath, "steamapps", "common");
         var gameFolder = Path.Join(steamCommon, gameName);
         var moddedFolder = Path.Join(steamCommon, gameName + " Modded");
         var moddedExeFilePath = Path.Join(moddedFolder, gameName + ".exe");
@@ -45,12 +54,12 @@ public static class Installer
         
         await Task.Run(() => CopyDirectory(gameFolder, moddedFolder));
         
-        _progress.NextStep(40);
+        _progress.NextStep(50);
         var baseModUrl = await FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
         var filePath = await DownloadFile(baseModUrl, moddedFolder);
         _progress.FinishStep();
         
-        _progress?.NextStep(20);
+        _progress?.NextStep(10);
         ExtractZip(filePath, moddedFolder);
         File.Delete(filePath);
         _progress?.FinishStep();
@@ -82,20 +91,18 @@ public static class Installer
             _progress?.FinishStep();
         }
         
-        if (!File.Exists(moddedExeFilePath) || string.IsNullOrEmpty(steamPath)) return;
+        if (!File.Exists(moddedExeFilePath) || string.IsNullOrEmpty(_steamPath)) return;
         
-        var currentSteamUserId = SteamShortcutManager.FindCurrentSteamUserId(steamPath);
-        var iconPath = await GetCustomAssets(steamPath, currentSteamUserId);
-        var addedShortcut = SteamShortcutManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
-        
-        if (addedShortcut) RestartSteam(steamPath);
+        var currentSteamUserId = SteamShortcutManager.FindCurrentSteamUserId(_steamPath);
+        var iconPath = await GetCustomAssets(currentSteamUserId);
+        RestartSteamFlag = SteamShortcutManager.AddShortcut(_steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
 
         Console.Out.WriteLine("Done!");
     }
 
-    private static async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId)
+    private static async Task<string> GetCustomAssets(long currentSteamUserId)
     {
-        var gridFolderPath = Path.Join(steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
+        var gridFolderPath = Path.Join(_steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
         const string steamGridId = "4294662226"; //only if game id is -305070
         List<(string url, string fileEnding)> assets =
         [
@@ -115,23 +122,26 @@ public static class Installer
             File.Move(grid,  renamedGrid, true);
             _progress?.FinishStep();
 
-            if (asset == assets.Last()) return grid;
+            if (asset == assets.Last()) return renamedGrid;
         }
         
         return string.Empty;
     }
 
-    private static void RestartSteam(string steamPath)
+    public static void RestartSteam()
     {
         if (!SteamShortcutManager.IsSteamRunning()) return;
-        
-        var steamExe = Path.Combine(steamPath, "steam.exe");
 
-        if (!File.Exists(steamExe)) return;
+        if (_steamPath != null)
+        {
+            var steamExe = Path.Combine(_steamPath, "steam.exe");
 
-        Process.Start(steamExe, "-shutdown");
-        Thread.Sleep(3000);
-        Process.Start(steamExe);
+            if (!File.Exists(steamExe)) return;
+
+            Process.Start(steamExe, "-shutdown");
+            Thread.Sleep(3000);
+            Process.Start(steamExe);
+        }
     }
 
     private static void CopyDirectory(string sourceDir, string destinationDir)
@@ -155,22 +165,43 @@ public static class Installer
     {
         using var archive = ZipFile.OpenRead(zipPath);
 
+        var roots = archive.Entries
+            .Select(e => e.FullName.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault())
+            .Where(x => x != null)
+            .Distinct()
+            .ToList();
+
+        var singleRootFolder =
+            roots.Count == 1 &&
+            archive.Entries.All(e => e.FullName.StartsWith(roots[0] + "/"));
+
         int total = archive.Entries.Count;
         int current = 0;
-
+        
         foreach (var entry in archive.Entries)
         {
             current++;
+            
+            var relativePath = entry.FullName;
 
-            var destinationPath = Path.Combine(extractPath, entry.FullName);
+            if (singleRootFolder)
+            {
+                // Remove the root folder from the path
+                relativePath = relativePath[roots[0]!.Length..].TrimStart('/');
+            }
+
+            if (string.IsNullOrEmpty(relativePath))
+                continue;
+
+            string destinationPath = Path.Combine(extractPath, relativePath);
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
-            if (!string.IsNullOrEmpty(entry.Name))
+            if (!string.IsNullOrEmpty(entry.Name)) // skip directories
             {
                 entry.ExtractToFile(destinationPath, true);
             }
-
+            
             double percent = (double)current / total * 100;
             _progress?.Report(percent, $"Extracting {entry.Name}");
         }
@@ -185,10 +216,10 @@ public static class Installer
     {
         var githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
         
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CSharpApp");
-        _httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CSharpApp");
+        HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
-        var response = await _httpClient.GetAsync(githubUrl);
+        var response = await HttpClient.GetAsync(githubUrl);
         response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadAsStringAsync();
@@ -212,7 +243,7 @@ public static class Installer
 
     private static async Task<string> DownloadFile(string url, string outputPath)
     {
-        var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         var totalBytes = response.Content.Headers.ContentLength ?? -1L;
@@ -241,4 +272,7 @@ public static class Installer
 
         return outputFile;
     }
+
+    [GeneratedRegex("\"path\"\\s*\"([^\"]+)\"")]
+    private static partial Regex MyRegex();
 }
