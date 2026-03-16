@@ -38,6 +38,8 @@ public partial class MainWindow
     {
         EnableDarkTitleBar();
         
+        await Task.Yield();
+        
         var reporter = new ProgressReporter(progressBar, statusLabel);
         
         var cleanupFlag = MessageBox.Show(

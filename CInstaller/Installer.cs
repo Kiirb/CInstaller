@@ -215,8 +215,8 @@ public static partial class Installer
             roots.Count == 1 &&
             archive.Entries.All(e => e.FullName.StartsWith(roots[0] + "/"));
 
-        int total = archive.Entries.Count;
-        int current = 0;
+        var total = archive.Entries.Count;
+        var current = 0;
         
         foreach (var entry in archive.Entries)
         {
@@ -242,7 +242,7 @@ public static partial class Installer
                 entry.ExtractToFile(destinationPath, true);
             }
             
-            double percent = (double)current / total * 100;
+            var percent = (double)current / total * 100;
             _progress?.Report(percent, $"Extracting {entry.Name}");
         }
     }
