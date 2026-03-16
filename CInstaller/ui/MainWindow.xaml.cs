@@ -40,6 +40,18 @@ public partial class MainWindow
         
         var reporter = new ProgressReporter(progressBar, statusLabel);
         
+        var cleanupFlag = MessageBox.Show(
+            "Sollen alle existierenden Among Us Installs neu installiert werden?",
+            "Hard Cleanup",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question
+        );
+
+        if (cleanupFlag.Equals(MessageBoxResult.Yes))
+        {
+            Installer.HardCleanFlag = true;
+        }
+        
         await Task.Run(() => Installer.RunInstaller(reporter));
 
         statusLabel.Content = "Installation complete!";

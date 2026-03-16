@@ -1,3 +1,4 @@
+using System.CodeDom;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -5,7 +6,6 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
-using Gameloop.Vdf;
 
 namespace CInstaller;
 
@@ -15,6 +15,7 @@ public static partial class Installer
     private static readonly HttpClient HttpClient = new();
     private static string? _steamPath;
     public static bool RestartSteamFlag = false;
+    public static bool HardCleanFlag = false;
     
     public static async Task RunInstaller(ProgressReporter progress)
     {
@@ -24,7 +25,7 @@ public static partial class Installer
         
         _steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
         
-        const string steamGameId = "945360";
+        const int steamGameId = 945360;
         const string gameName = "Among us";
         var steamOrigin = "";
         
@@ -59,6 +60,8 @@ public static partial class Installer
             Console.Write(gameFolder + " not found");
             return;
         }
+
+        if (HardCleanFlag) CleanUpGameFiles(steamCommon, steamGameId);
         
         _progress.Report(0, "Mod Install wird erstellt");
         await Task.Run(() => CopyDirectory(gameFolder, moddedFolder));
@@ -95,8 +98,8 @@ public static partial class Installer
         foreach (var plugin in plugins)
         {
             _progress?.NextStep(stepPerPlugin);
-            //var pluginUrl = await FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
-            //await DownloadFile(pluginUrl, pluginFolder);
+            var pluginUrl = await FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
+            await DownloadFile(pluginUrl, pluginFolder);
             _progress?.FinishStep();
         }
         
@@ -107,6 +110,28 @@ public static partial class Installer
         RestartSteamFlag = SteamShortcutManager.AddShortcut(_steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
 
         Console.Out.WriteLine("Done!");
+    }
+
+    private static void CleanUpGameFiles(string steamCommon, int steamGameId)
+    {
+        _progress?.Report(0, "Wartet auf steam install");
+        foreach (var dir in Directory.GetDirectories(steamCommon, "Among us*", SearchOption.TopDirectoryOnly))
+        {
+            Directory.Delete(dir, true);
+        }
+        
+        Process.Start(new ProcessStartInfo($"steam://validate/{steamGameId}") { UseShellExecute = true });
+    
+        var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", steamGameId.ToString());
+        
+        Thread.Sleep(3000);
+        
+        while (Directory.Exists(gameDownloadFolder))
+        {
+            Thread.Sleep(3000);
+        }
+        
+        Thread.Sleep(1000);
     }
 
     private static async Task<string> GetCustomAssets(long currentSteamUserId)
