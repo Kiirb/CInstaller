@@ -319,7 +319,4 @@ public static partial class Installer
 
         return outputFile;
     }
-
-    [GeneratedRegex("\"path\"\\s*\"([^\"]+)\"")]
-    private static partial Regex MyRegex();
 }
