@@ -18,19 +18,21 @@ public static partial class Installer
     
     public static async Task RunInstaller(ProgressReporter progress)
     {
+        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CInstaller");
+        HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         _progress = progress;
         
         _steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
         
         const string steamGameId = "945360";
         const string gameName = "Among us";
-        string steamOrigin = "";
+        var steamOrigin = "";
         
         
-        var libaryFolderFile = Path.Join(_steamPath, "steamapps", "libraryfolders.vdf");
+        var libraryFolderFile = Path.Join(_steamPath, "steamapps", "libraryfolders.vdf");
         var regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
 
-        foreach (Match lib in regex.Matches(File.ReadAllText(libaryFolderFile)))
+        foreach (Match lib in regex.Matches(File.ReadAllText(libraryFolderFile)))
         {
             var path = lib.Groups[1].Value.Replace("\\\\", "\\");
             var appsBlock = lib.Groups[2].Value;
@@ -58,6 +60,7 @@ public static partial class Installer
             return;
         }
         
+        _progress.Report(0, "Mod Install wird erstellt");
         await Task.Run(() => CopyDirectory(gameFolder, moddedFolder));
         
         _progress.NextStep(50);
@@ -88,12 +91,12 @@ public static partial class Installer
         ];
 
         var stepPerPlugin = 30 / plugins.Count;
-
+        
         foreach (var plugin in plugins)
         {
             _progress?.NextStep(stepPerPlugin);
-            var pluginUrl = await FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
-            await DownloadFile(pluginUrl, pluginFolder);
+            //var pluginUrl = await FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
+            //await DownloadFile(pluginUrl, pluginFolder);
             _progress?.FinishStep();
         }
         
@@ -109,17 +112,23 @@ public static partial class Installer
     private static async Task<string> GetCustomAssets(long currentSteamUserId)
     {
         var gridFolderPath = Path.Join(_steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
+        if (!Directory.Exists(gridFolderPath)) Directory.CreateDirectory(gridFolderPath);
+            
         const string steamGridId = "4294662226"; //only if game id is -305070
         List<(string url, string fileEnding)> assets =
         [
             ("https://cdn2.steamgriddb.com/grid/24330531679f7fd5318e3e9dde4e1c99.png", "p.png"),
-            ("https://drive.google.com/uc?export=download&id=1zBoSGPPpe-wZW3CxGB-DFCWs6_rqUcY0", "_hero.png"),
-            ("https://drive.google.com/uc?export=download&id=186kqfm7WA5jPnSr5A-jiiAjPcxS7GNKl", "_logo.png"),
+            ("https://cdn2.steamgriddb.com/hero/1cc1fab198176208789cf94b71412dc8.png", "_hero.png"),
+            ("https://cdn2.steamgriddb.com/logo/1d92bf06b68f0b08837d6d88412df8ec.png", "_logo.png"),
             ("https://cdn2.steamgriddb.com/icon/588bc7654c8815a85a09b0bc6d82a29f.png", "_icon.png")
         ];
 
         var stepPerAsset = 10 / assets.Count;
-
+        
+        const string logoConfig =
+            "{\"nVersion\":1,\"logoPosition\":{\"pinnedPosition\":\"CenterCenter\",\"nWidthPct\":23.704171934260415,\"nHeightPct\":65.2777777777778}}"; //make actual json reader/write if i feel like it
+        File.WriteAllText(Path.Join(gridFolderPath, $"{steamGridId}.json"), logoConfig);
+        
         foreach (var asset in assets)
         {
             _progress?.NextStep(stepPerAsset);
@@ -130,7 +139,7 @@ public static partial class Installer
 
             if (asset == assets.Last()) return renamedGrid;
         }
-        
+
         return string.Empty;
     }
 
@@ -221,11 +230,18 @@ public static partial class Installer
         string searchPattern)
     {
         var githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
-        
-        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CSharpApp");
-        HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
         var response = await HttpClient.GetAsync(githubUrl);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            if (response.Headers.TryGetValues("X-RateLimit-Reset", out var reset))
+            {
+                var resetTime = DateTimeOffset.FromUnixTimeSeconds(long.Parse(reset.First()));
+                throw new Exception($"GitHub rate limit exceeded. Try again at {resetTime.LocalDateTime}.");
+            }
+        }
+
         response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadAsStringAsync();

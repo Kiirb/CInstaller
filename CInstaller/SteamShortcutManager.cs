@@ -45,25 +45,19 @@ public static class SteamShortcutManager
         return steamId64 - SteamId64Base;
     }
 
-    private static string FindShortcutsFile(string steamPath, long currentSteamUserId)
-    {
-        var shortcutFile = Path.Combine(steamPath, "userdata", currentSteamUserId.ToString(), "config", "shortcuts.vdf");
-
-        return File.Exists(shortcutFile) ? shortcutFile : throw new ArgumentException("SteamShortcutManager: shortcuts.vdf not found");
-    }
-
     private static Dictionary<string, object> ParseShortcuts(string path)
     {
+        if (!File.Exists(path))
+            return new() { ["shortcuts"] = new Dictionary<string, object>() };
+
         using var stream = File.OpenRead(path);
-        var reader = new BinVdfReader(stream);
-        return reader.ReadDict();
+        return new BinVdfReader(stream).ReadDict();
     }
 
     private static void SaveShortcuts(string path, Dictionary<string, object> map)
     {
         using var stream = File.Open(path, FileMode.Create);
-        var writer = new BinVdfWriter(stream);
-        writer.WriteDict(map);
+        new BinVdfWriter(stream).WriteDict(map);
     }
 
     private static void ClearVdfFile(Dictionary<string, object> rootMap)
@@ -136,8 +130,8 @@ public static class SteamShortcutManager
 
     public static bool AddShortcut(string steamPath, string newGameFolderPath, string newGameExePath, string icon, long currentSteamUserId)
     {
-        var shortcutVdfFile = FindShortcutsFile(steamPath, currentSteamUserId);
-
+        var shortcutVdfFile = Path.Combine(steamPath, "userdata", currentSteamUserId.ToString(), "config", "shortcuts.vdf");
+        
         var rootMap = ParseShortcuts(shortcutVdfFile);
         
         if (!ShortcutExists(rootMap, newGameFolderPath, newGameExePath))

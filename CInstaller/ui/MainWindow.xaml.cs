@@ -54,7 +54,10 @@ public partial class MainWindow
                 MessageBoxImage.Question
             );
 
-            if (result == MessageBoxResult.OK) Installer.RestartSteam();
+            if (result == MessageBoxResult.OK)
+            {
+                Installer.RestartSteam();
+            }
         }
         else
         {
