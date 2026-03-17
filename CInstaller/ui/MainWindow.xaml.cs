@@ -41,9 +41,20 @@ public partial class MainWindow
         await Task.Yield();
         
         var reporter = new ProgressReporter(progressBar, statusLabel);
+
+        var steamCommon = Installer.FindSteamCommon();
+        if (string.IsNullOrEmpty(steamCommon))
+        {
+            var result = MessageBox.Show(
+                "Steam oder Among us konnte nicht gefunden werden",
+                "Find Path Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+        }
         
         var cleanupFlag = MessageBox.Show(
-            "Sollen alle existierenden Among Us Installs neu installiert werden?",
+            "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?",
             "Hard Cleanup",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
@@ -54,7 +65,7 @@ public partial class MainWindow
             Installer.HardCleanFlag = true;
         }
         
-        await Task.Run(() => Installer.RunInstaller(reporter));
+        await Task.Run(() => Installer.RunInstaller(reporter, steamCommon));
 
         statusLabel.Content = "Installation complete!";
         progressBar.Value = 100;

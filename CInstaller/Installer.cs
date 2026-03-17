@@ -16,17 +16,13 @@ public static partial class Installer
     private static string? _steamPath;
     public static bool RestartSteamFlag = false;
     public static bool HardCleanFlag = false;
-    
-    public static async Task RunInstaller(ProgressReporter progress)
+    private const int SteamGameId = 945360;
+    private const string GameName = "Among us";
+
+    public static string FindSteamCommon()
     {
-        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CInstaller");
-        HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
-        _progress = progress;
-        
         _steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
         
-        const int steamGameId = 945360;
-        const string gameName = "Among us";
         var steamOrigin = "";
         
         
@@ -38,20 +34,24 @@ public static partial class Installer
             var path = lib.Groups[1].Value.Replace("\\\\", "\\");
             var appsBlock = lib.Groups[2].Value;
 
-            if (Regex.IsMatch(appsBlock, $"\"{steamGameId}\""))
+            if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
             {
                 steamOrigin = path;
             }
         }
         
-        if (string.IsNullOrEmpty(steamOrigin)) return;
+        return string.IsNullOrEmpty(steamOrigin) ? "" : Path.Join(steamOrigin, "steamapps", "common");
+    }
+    
+    public static async Task RunInstaller(ProgressReporter progress, string steamCommon)
+    {
+        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CInstaller");
+        HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        _progress = progress;
         
-        //var gameManifest = Path.Join(_steamPath, "steamapps", "appmanifest_" + steamGameId + ".acf");
-        
-        var steamCommon = Path.Join(steamOrigin, "steamapps", "common");
-        var gameFolder = Path.Join(steamCommon, gameName);
-        var moddedFolder = Path.Join(steamCommon, gameName + " Modded");
-        var moddedExeFilePath = Path.Join(moddedFolder, gameName + ".exe");
+        var gameFolder = Path.Join(steamCommon, GameName);
+        var moddedFolder = Path.Join(steamCommon, GameName + " Modded");
+        var moddedExeFilePath = Path.Join(moddedFolder, GameName + ".exe");
 
         Console.Out.WriteLine(gameFolder);
 
@@ -61,7 +61,7 @@ public static partial class Installer
             return;
         }
 
-        if (HardCleanFlag) CleanUpGameFiles(steamCommon, steamGameId);
+        if (HardCleanFlag) CleanUpGameFiles(steamCommon, SteamGameId);
         
         _progress.Report(0, "Mod Install wird erstellt");
         await Task.Run(() => CopyDirectory(gameFolder, moddedFolder));
@@ -115,7 +115,7 @@ public static partial class Installer
     private static void CleanUpGameFiles(string steamCommon, int steamGameId)
     {
         _progress?.Report(0, "Wartet auf steam install");
-        foreach (var dir in Directory.GetDirectories(steamCommon, "Among us*", SearchOption.TopDirectoryOnly))
+        foreach (var dir in Directory.GetDirectories(steamCommon, $"{GameName}*", SearchOption.TopDirectoryOnly))
         {
             Directory.Delete(dir, true);
         }
@@ -190,13 +190,13 @@ public static partial class Installer
 
         foreach (var file in Directory.GetFiles(sourceDir))
         {
-            var destFile = Path.Combine(destinationDir, Path.GetFileName(file));
+            var destFile = Path.Join(destinationDir, Path.GetFileName(file));
             File.Copy(file, destFile, true);
         }
 
         foreach (var directory in Directory.GetDirectories(sourceDir))
         {
-            var destDir = Path.Combine(destinationDir, Path.GetFileName(directory));
+            var destDir = Path.Join(destinationDir, Path.GetFileName(directory));
             CopyDirectory(directory, destDir);
         }
     }
