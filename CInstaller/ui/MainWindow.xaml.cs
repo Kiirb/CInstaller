@@ -25,7 +25,7 @@ public partial class MainWindow
     {
         var hwnd = new WindowInteropHelper(this).Handle;
 
-        int useDark = 1;
+        var useDark = 1;
 
         DwmSetWindowAttribute(
             hwnd,
@@ -42,30 +42,42 @@ public partial class MainWindow
         
         var reporter = new ProgressReporter(progressBar, statusLabel);
 
-        var steamCommon = Installer.FindSteamCommon();
+        var steamCommon = await Installer.FindSteamCommon();
         if (string.IsNullOrEmpty(steamCommon))
         {
-            var result = MessageBox.Show(
-                "Steam oder Among us konnte nicht gefunden werden",
+            MessageBox.Show(
+                "Steam oder Steam Common konnte nicht gefunden werden",
                 "Find Path Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error
             );
+            Application.Current.Shutdown();
         }
         
+        var gameFolder = await Installer.FindGameFolder(steamCommon);
+
+        var isInstalled = true;//!string.IsNullOrEmpty(gameFolder);
+
+        const string baseText = "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?";
+        const string notInstalledText = "Among us ist nicht installiert, solle es installiet werden?";
+        
         var cleanupFlag = MessageBox.Show(
-            "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?",
+            isInstalled ? baseText : notInstalledText,
             "Hard Cleanup",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
         );
 
-        if (cleanupFlag.Equals(MessageBoxResult.Yes))
+        if (cleanupFlag.Equals(MessageBoxResult.No) && !isInstalled)
+        {
+            Application.Current.Shutdown();
+        }
+        else
         {
             Installer.HardCleanFlag = true;
         }
         
-        await Task.Run(() => Installer.RunInstaller(reporter, steamCommon));
+        await Installer.RunInstaller(reporter, steamCommon, gameFolder);
 
         statusLabel.Content = "Installation complete!";
         progressBar.Value = 100;

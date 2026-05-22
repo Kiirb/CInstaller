@@ -1,4 +1,3 @@
-using System.CodeDom;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -9,7 +8,7 @@ using Microsoft.Win32;
 
 namespace CInstaller;
 
-public static partial class Installer
+public static class Installer
 {
     private static ProgressReporter? _progress;
     private static readonly HttpClient HttpClient = new();
@@ -19,12 +18,17 @@ public static partial class Installer
     private const int SteamGameId = 945360;
     private const string GameName = "Among us";
 
-    public static string FindSteamCommon()
+    public static async Task<string> FindSteamCommon()
     {
         _steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
         
-        var steamOrigin = "";
+        if (string.IsNullOrEmpty(_steamPath))
+        {
+            Console.Out.WriteLine("Couldn't find Steam Path");
+            return "";
+        }
         
+        var steamOrigin = "";
         
         var libraryFolderFile = Path.Join(_steamPath, "steamapps", "libraryfolders.vdf");
         var regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
@@ -42,29 +46,35 @@ public static partial class Installer
         
         return string.IsNullOrEmpty(steamOrigin) ? "" : Path.Join(steamOrigin, "steamapps", "common");
     }
+
+    public static async Task<string> FindGameFolder(string steamCommon)
+    {
+        var gameFolder = Path.Join(steamCommon, GameName);
+
+        if (!Directory.Exists(gameFolder))
+        {
+            Console.Write(gameFolder + " not found");
+            return "";
+        }
+        
+        return gameFolder;
+    }
     
-    public static async Task RunInstaller(ProgressReporter progress, string steamCommon)
+    public static async Task RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
     {
         HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CInstaller");
         HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         _progress = progress;
         
-        var gameFolder = Path.Join(steamCommon, GameName);
         var moddedFolder = Path.Join(steamCommon, GameName + " Modded");
         var moddedExeFilePath = Path.Join(moddedFolder, GameName + ".exe");
 
         Console.Out.WriteLine(gameFolder);
 
-        if (!Directory.Exists(gameFolder))
-        {
-            Console.Write(gameFolder + " not found");
-            return;
-        }
-
         if (HardCleanFlag) CleanUpGameFiles(steamCommon, SteamGameId);
         
         _progress.Report(0, "Mod Install wird erstellt");
-        await Task.Run(() => CopyDirectory(gameFolder, moddedFolder));
+        CopyDirectory(gameFolder, moddedFolder);
         
         _progress.NextStep(50);
         var baseModUrl = await FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
