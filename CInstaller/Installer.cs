@@ -12,7 +12,6 @@ public static class Installer
 {
     private static ProgressReporter? _progress;
     private static readonly HttpClient HttpClient = new();
-    private static string? _steamPath;
     public static bool RestartSteamFlag = false;
     public static bool HardCleanFlag = false;
     private const int SteamGameId = 945360;
@@ -20,19 +19,16 @@ public static class Installer
 
     public static async Task<string> FindSteamCommon()
     {
-        _steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
-        
-        if (string.IsNullOrEmpty(_steamPath))
-        {
-            Console.Out.WriteLine("Couldn't find Steam Path");
-            return "";
-        }
-        
-        var steamOrigin = "";
-        
-        var libraryFolderFile = Path.Join(_steamPath, "steamapps", "libraryfolders.vdf");
+        return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
+    }
+
+    public static async Task<(string, string)> FindGameFolder(string steamPath)
+    {
+        var libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
         var regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
 
+        var steamCommon = ""; 
+        
         foreach (Match lib in regex.Matches(File.ReadAllText(libraryFolderFile)))
         {
             var path = lib.Groups[1].Value.Replace("\\\\", "\\");
@@ -40,27 +36,24 @@ public static class Installer
 
             if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
             {
-                steamOrigin = path;
+                steamCommon = Path.Join(path, "steamapps", "common");
             }
         }
         
-        return string.IsNullOrEmpty(steamOrigin) ? "" : Path.Join(steamOrigin, "steamapps", "common");
-    }
-
-    public static async Task<string> FindGameFolder(string steamCommon)
-    {
+        if (string.IsNullOrEmpty(steamCommon)) return ("", "");
+        
         var gameFolder = Path.Join(steamCommon, GameName);
 
         if (!Directory.Exists(gameFolder))
         {
             Console.Write(gameFolder + " not found");
-            return "";
+            return ("", "");
         }
         
-        return gameFolder;
+        return (steamCommon, gameFolder);
     }
     
-    public static async Task RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
+    public static async Task RunInstaller(ProgressReporter progress, string steamPath, string steamCommon, string gameFolder)
     {
         HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CInstaller");
         HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
@@ -71,7 +64,7 @@ public static class Installer
 
         Console.Out.WriteLine(gameFolder);
 
-        if (HardCleanFlag) CleanUpGameFiles(steamCommon, SteamGameId);
+        if (HardCleanFlag) CleanUpGameFiles(steamPath, steamCommon, SteamGameId);
         
         _progress.Report(0, "Mod Install wird erstellt");
         CopyDirectory(gameFolder, moddedFolder);
@@ -113,21 +106,33 @@ public static class Installer
             _progress?.FinishStep();
         }
         
-        if (!File.Exists(moddedExeFilePath) || string.IsNullOrEmpty(_steamPath)) return;
+        if (!File.Exists(moddedExeFilePath)) return;
         
-        var currentSteamUserId = SteamShortcutManager.FindCurrentSteamUserId(_steamPath);
-        var iconPath = await GetCustomAssets(currentSteamUserId);
-        RestartSteamFlag = SteamShortcutManager.AddShortcut(_steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
+        var currentSteamUserId = SteamShortcutManager.FindCurrentSteamUserId(steamPath);
+        var iconPath = await GetCustomAssets(steamPath, currentSteamUserId);
+        RestartSteamFlag = SteamShortcutManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
 
         Console.Out.WriteLine("Done!");
     }
 
-    private static void CleanUpGameFiles(string steamCommon, int steamGameId)
+    private static void CleanUpGameFiles(string steamPath, string steamCommon, int steamGameId)
     {
         _progress?.Report(0, "Wartet auf steam install");
         foreach (var dir in Directory.GetDirectories(steamCommon, $"{GameName}*", SearchOption.TopDirectoryOnly))
         {
             Directory.Delete(dir, true);
+        }
+        
+        //TODO
+
+        var steamExe = Path.Join(steamPath, "steam.exe");
+        if  (!File.Exists(steamExe)) return;
+        
+        Process.Start(new ProcessStartInfo($"{steamExe} -silent") { UseShellExecute = true });
+
+        while (!SteamShortcutManager.IsSteamRunning())
+        {
+            Thread.Sleep(3000);
         }
         
         Process.Start(new ProcessStartInfo($"steam://validate/{steamGameId}") { UseShellExecute = true });
@@ -144,9 +149,9 @@ public static class Installer
         Thread.Sleep(1000);
     }
 
-    private static async Task<string> GetCustomAssets(long currentSteamUserId)
+    private static async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId)
     {
-        var gridFolderPath = Path.Join(_steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
+        var gridFolderPath = Path.Join(steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
         if (!Directory.Exists(gridFolderPath)) Directory.CreateDirectory(gridFolderPath);
             
         const string steamGridId = "4294662226"; //only if game id is -305070
@@ -178,20 +183,17 @@ public static class Installer
         return string.Empty;
     }
 
-    public static void RestartSteam()
+    public static void RestartSteam(string steamPath)
     {
         if (!SteamShortcutManager.IsSteamRunning()) return;
+        
+        var steamExe = Path.Combine(steamPath, "steam.exe");
 
-        if (_steamPath != null)
-        {
-            var steamExe = Path.Combine(_steamPath, "steam.exe");
+        if (!File.Exists(steamExe)) return;
 
-            if (!File.Exists(steamExe)) return;
-
-            Process.Start(steamExe, "-shutdown");
-            Thread.Sleep(3000);
-            Process.Start(steamExe);
-        }
+        Process.Start(steamExe, "-shutdown");
+        Thread.Sleep(3000);
+        Process.Start(steamExe);
     }
 
     private static void CopyDirectory(string sourceDir, string destinationDir)

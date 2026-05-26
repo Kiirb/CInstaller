@@ -42,19 +42,20 @@ public partial class MainWindow
         
         var reporter = new ProgressReporter(progressBar, statusLabel);
 
-        var steamCommon = await Installer.FindSteamCommon();
-        if (string.IsNullOrEmpty(steamCommon))
+        var steamPath = await Installer.FindSteamCommon();
+        if (string.IsNullOrEmpty(steamPath))
         {
             MessageBox.Show(
-                "Steam oder Steam Common konnte nicht gefunden werden",
+                "Steam konnte nicht gefunden werden",
                 "Find Path Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error
             );
             Application.Current.Shutdown();
         }
-        
-        var gameFolder = await Installer.FindGameFolder(steamCommon);
+
+        //TODO if not steamCommon try install game and search again
+        (var steamCommon, var gameFolder) = await Installer.FindGameFolder(steamPath);
 
         var isInstalled = true;//!string.IsNullOrEmpty(gameFolder);
 
@@ -77,7 +78,7 @@ public partial class MainWindow
             Installer.HardCleanFlag = true;
         }
         
-        await Installer.RunInstaller(reporter, steamCommon, gameFolder);
+        await Installer.RunInstaller(reporter, steamPath, steamCommon, gameFolder);
 
         statusLabel.Content = "Installation complete!";
         progressBar.Value = 100;
@@ -93,7 +94,7 @@ public partial class MainWindow
 
             if (result == MessageBoxResult.OK)
             {
-                Installer.RestartSteam();
+                Installer.RestartSteam(steamPath);
             }
         }
         else
