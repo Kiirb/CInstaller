@@ -133,17 +133,15 @@ public static class SteamShortcutManager
         var steamExe = Path.Join(steamPath, "steam.exe");
         if  (!File.Exists(steamExe)) return;
 
-        if (IsSteamRunning())
+        if (!IsSteamRunning())
         {
-            Process.Start(new ProcessStartInfo($"{steamExe} -silent") { UseShellExecute = true });//TODO maybe remove on final build
+            Process.Start(new ProcessStartInfo($"{steamExe} -silent" ) { UseShellExecute = true }); //TODO maybe remove "-silent" on final build
 
             while (IsSteamRunning())
             {
                 Thread.Sleep(3000);
             }
         }
-        
-        Thread.Sleep(3000);
     }
 
 

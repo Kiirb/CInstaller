@@ -15,7 +15,7 @@ public static class Installer
     private const int SteamGameId = 945360;
     private const string GameName = "Among us";
 
-    public static async Task<string> FindSteamCommon()
+    public static async Task<string> FindSteamPath()
     {
         return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
     }
@@ -133,10 +133,10 @@ public static class Installer
         
         Process.Start(new ProcessStartInfo($"steam://validate/{SteamGameId}") { UseShellExecute = true });
 
-        await trackGameDownload(steamCommon);
+        await TrackGameDownload(steamCommon);
     }
     
-    public static async Task trackGameDownload(string steamCommon)
+    private static async Task TrackGameDownload(string steamCommon)
     {
         var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", SteamGameId.ToString());
         
@@ -146,8 +146,6 @@ public static class Installer
         {
             Thread.Sleep(3000);
         }
-        
-        Thread.Sleep(1000);
     }
     
     private static async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId)

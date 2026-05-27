@@ -42,7 +42,7 @@ public partial class MainWindow
         
         var reporter = new ProgressReporter(progressBar, statusLabel);
 
-        var steamPath = await Installer.FindSteamCommon();
+        var steamPath = await Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))
         {
             MessageBox.Show(
@@ -52,48 +52,42 @@ public partial class MainWindow
                 MessageBoxImage.Error
             );
             Application.Current.Shutdown();
+            return;
         }
         
         
         (var steamCommon,var gameFolder) = await Installer.FindGameFolder(steamPath);
-        
-        var isInstalled = true;//!string.IsNullOrEmpty(steamCommon) || !string.IsNullOrEmpty(gameFolder);
 
-        const string baseText = "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?";
-        const string notInstalledText = "Among us ist nicht installiert, solle es installiet werden?";
+        if (string.IsNullOrEmpty(steamCommon) || string.IsNullOrEmpty(gameFolder))
+        {
+            var installGameFlag = MessageBox.Show(
+                "Among us ist nicht installiert, installiere es und starte den Installer neu",
+                "Not installed",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Question
+            );
+
+            if (installGameFlag.Equals(MessageBoxResult.OK))
+            {
+                await Installer.InstallGame(steamPath);
+            }
+
+            Application.Current.Shutdown();
+            return;
+        }
         
         var cleanupFlag = MessageBox.Show(
-            isInstalled ? baseText : notInstalledText,
+            "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?",
             "Hard Cleanup",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
         );
         
-        if (cleanupFlag.Equals(MessageBoxResult.No) && !isInstalled) Application.Current.Shutdown();
-        else if (cleanupFlag.Equals(MessageBoxResult.Yes) && !isInstalled)
-        {
-            reporter.Report(0, "Wartet auf game install");
-            await Installer.InstallGame(steamPath);
-        }
-        else if (cleanupFlag.Equals(MessageBoxResult.Yes))
+        if (cleanupFlag.Equals(MessageBoxResult.Yes))
         {
             reporter.Report(0, "Wartet auf game reinstall");
             await Installer.CleanUpGameFiles(steamPath, steamCommon);
         }
-        
-        if (!isInstalled) (steamCommon, gameFolder) = await Installer.FindGameFolder(steamPath);
-        if (string.IsNullOrEmpty(steamCommon) || string.IsNullOrEmpty(gameFolder))
-        {
-            MessageBox.Show(
-                "Among us install konnte nicht gefunden werden",
-                "Install Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error
-            );
-            
-            Application.Current.Shutdown();
-        }
-        if (!isInstalled) await Installer.trackGameDownload(steamCommon);
         
         var moddedFolder = await Installer.RunInstaller(reporter, steamCommon, gameFolder);
         if (string.IsNullOrEmpty(moddedFolder))
@@ -128,8 +122,8 @@ public partial class MainWindow
         else
         {
             MessageBox.Show(
-                "Installation completed successfully!",
-                "Installer",
+                "Installation Fertig!",
+                "Install Done",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information
             );
