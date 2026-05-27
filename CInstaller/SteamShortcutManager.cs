@@ -127,6 +127,25 @@ public static class SteamShortcutManager
 
         return false;
     }
+    
+    public static void LaunchSteam(string steamPath)
+    {
+        var steamExe = Path.Join(steamPath, "steam.exe");
+        if  (!File.Exists(steamExe)) return;
+
+        if (IsSteamRunning())
+        {
+            Process.Start(new ProcessStartInfo($"{steamExe} -silent") { UseShellExecute = true });//TODO maybe remove on final build
+
+            while (IsSteamRunning())
+            {
+                Thread.Sleep(3000);
+            }
+        }
+        
+        Thread.Sleep(3000);
+    }
+
 
     public static bool AddShortcut(string steamPath, string newGameFolderPath, string newGameExePath, string icon, long currentSteamUserId)
     {

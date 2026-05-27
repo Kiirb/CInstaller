@@ -53,11 +53,11 @@ public partial class MainWindow
             );
             Application.Current.Shutdown();
         }
-
-        //TODO if not steamCommon try install game and search again
-        (var steamCommon, var gameFolder) = await Installer.FindGameFolder(steamPath);
-
-        var isInstalled = true;//!string.IsNullOrEmpty(gameFolder);
+        
+        
+        (var steamCommon,var gameFolder) = await Installer.FindGameFolder(steamPath);
+        
+        var isInstalled = true;//!string.IsNullOrEmpty(steamCommon) || !string.IsNullOrEmpty(gameFolder);
 
         const string baseText = "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?";
         const string notInstalledText = "Among us ist nicht installiert, solle es installiet werden?";
@@ -68,22 +68,50 @@ public partial class MainWindow
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
         );
-
-        if (cleanupFlag.Equals(MessageBoxResult.No) && !isInstalled)
+        
+        if (cleanupFlag.Equals(MessageBoxResult.No) && !isInstalled) Application.Current.Shutdown();
+        else if (cleanupFlag.Equals(MessageBoxResult.Yes) && !isInstalled)
         {
-            Application.Current.Shutdown();
+            reporter.Report(0, "Wartet auf game install");
+            await Installer.InstallGame(steamPath);
         }
-        else
+        else if (cleanupFlag.Equals(MessageBoxResult.Yes))
         {
-            Installer.HardCleanFlag = true;
+            reporter.Report(0, "Wartet auf game reinstall");
+            await Installer.CleanUpGameFiles(steamPath, steamCommon);
         }
         
-        await Installer.RunInstaller(reporter, steamPath, steamCommon, gameFolder);
-
+        if (!isInstalled) (steamCommon, gameFolder) = await Installer.FindGameFolder(steamPath);
+        if (string.IsNullOrEmpty(steamCommon) || string.IsNullOrEmpty(gameFolder))
+        {
+            MessageBox.Show(
+                "Among us install konnte nicht gefunden werden",
+                "Install Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+            
+            Application.Current.Shutdown();
+        }
+        if (!isInstalled) await Installer.trackGameDownload(steamCommon);
+        
+        var moddedFolder = await Installer.RunInstaller(reporter, steamCommon, gameFolder);
+        if (string.IsNullOrEmpty(moddedFolder))
+        {
+            MessageBox.Show(
+                "Plugin Ordner konnte nicht gefunden werden",
+                "Install Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+        }
+        
+        var restartSteamFlag = await Installer.AddToSteam(steamPath, moddedFolder);
+        
         statusLabel.Content = "Installation complete!";
         progressBar.Value = 100;
 
-        if (Installer.RestartSteamFlag)
+        if (restartSteamFlag && SteamShortcutManager.IsSteamRunning())
         {
             var result = MessageBox.Show(
                 "Steam Muss neu gestartet werden um alle änderungen zu übernehmen\n\nJetzt neustarten?",
@@ -94,7 +122,7 @@ public partial class MainWindow
 
             if (result == MessageBoxResult.OK)
             {
-                Installer.RestartSteam(steamPath);
+                await Installer.RestartSteam(steamPath);
             }
         }
         else
