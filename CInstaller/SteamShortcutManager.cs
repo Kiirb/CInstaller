@@ -128,7 +128,7 @@ public static class SteamShortcutManager
         return false;
     }
     
-    public static void LaunchSteam(string steamPath)
+    public static async Task LaunchSteam(string steamPath)
     {
         var steamExe = Path.Join(steamPath, "steam.exe");
         if  (!File.Exists(steamExe)) return;
@@ -139,7 +139,7 @@ public static class SteamShortcutManager
 
             while (IsSteamRunning())
             {
-                Thread.Sleep(3000);
+                await Task.Delay(3000);
             }
         }
     }

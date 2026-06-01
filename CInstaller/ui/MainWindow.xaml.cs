@@ -89,6 +89,7 @@ public partial class MainWindow
             await Installer.CleanUpGameFiles(steamPath, steamCommon);
         }
         
+        reporter.Report(0, "Starte Installer");
         var moddedFolder = await Installer.RunInstaller(reporter, steamCommon, gameFolder);
         if (string.IsNullOrEmpty(moddedFolder))
         {
