@@ -135,7 +135,7 @@ public static class SteamShortcutManager
 
         if (!IsSteamRunning())
         {
-            Process.Start(new ProcessStartInfo($"{steamExe} -silent" ) { UseShellExecute = true }); //TODO maybe remove "-silent" on final build
+            Process.Start(new ProcessStartInfo($"{steamExe}" ) { UseShellExecute = true }); //TODO maybe remove "-silent" on final build
 
             while (IsSteamRunning())
             {
