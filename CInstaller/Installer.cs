@@ -34,10 +34,8 @@ public static class Installer
             if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
             {
                 var steamCommon = Path.Join(path, "steamapps", "common");
-                Console.Out.WriteLine(steamCommon);
                 
                 var gameFolder = Path.Join(steamCommon, GameName);
-                Console.Out.WriteLine(gameFolder);
 
                 if (!Directory.Exists(gameFolder))
                 {
@@ -59,7 +57,6 @@ public static class Installer
         _progress = progress;
         
         var moddedFolder = Path.Join(steamCommon, GameName + " Modded");
-        Console.Out.WriteLine(moddedFolder);
         
         _progress.NextStep(20);
         await Task.Run(() =>
