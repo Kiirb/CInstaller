@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -276,16 +277,16 @@ public static class Installer
             _progress?.Report(percent, $"Extracting {entry.Name}");
         }
     }
-
-
-
-    private static async Task<string> FindLatestGithubDownloadAsset(
-        string repoOwner,
-        string repoName,
-        string searchPattern)
+    
+    
+    
+    private static async Task<string> FindLatestGithubDownloadAsset(string repoOwner, string repoName, string searchPattern, string? token = null)
     {
         var githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
-
+        
+        if (token is not null)
+            HttpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+        
         var response = await HttpClient.GetAsync(githubUrl);
 
         if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
