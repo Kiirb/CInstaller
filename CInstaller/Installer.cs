@@ -110,14 +110,14 @@ public static class Installer
     {
         var moddedExeFilePath = Path.Join(moddedFolder, GameName + ".exe");
         
-        var currentSteamUserId = SteamShortcutManager.FindCurrentSteamUserId(steamPath);
+        var currentSteamUserId = SteamManager.FindCurrentSteamUserId(steamPath);
         var iconPath = await GetCustomAssets(steamPath, currentSteamUserId);
-        return SteamShortcutManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
+        return SteamManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
     }
 
     public static async Task InstallGame(string steamPath)
     {
-        SteamShortcutManager.LaunchSteam(steamPath);
+        SteamManager.LaunchSteam(steamPath);
         
         Process.Start(new ProcessStartInfo($"steam://install/{SteamGameId}") { UseShellExecute = true });
     }
@@ -129,7 +129,7 @@ public static class Installer
             Directory.Delete(dir, true);
         }
         
-        SteamShortcutManager.LaunchSteam(steamPath);
+        SteamManager.LaunchSteam(steamPath);
         
         Process.Start(new ProcessStartInfo($"steam://validate/{SteamGameId}") { UseShellExecute = true });
 
@@ -184,7 +184,7 @@ public static class Installer
 
     public static async Task RestartSteam(string steamPath)
     {
-        if (!SteamShortcutManager.IsSteamRunning()) return;
+        if (!SteamManager.IsSteamRunning()) return;
         
         var steamExe = Path.Combine(steamPath, "steam.exe");
 

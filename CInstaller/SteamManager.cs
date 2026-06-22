@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace CInstaller;
 
-public static class SteamShortcutManager
+public static class SteamManager
 {
     private const long SteamId64Base = 76561197960265728L;
 
@@ -17,7 +17,7 @@ public static class SteamShortcutManager
             return steamFolder.FullName;
         }
         
-        Console.WriteLine($"SteamShortcutManager: findSteamPath: {steamFolder}");
+        Console.WriteLine($"SteamManager: findSteamPath: {steamFolder}");
         return null!;
     }
 
@@ -26,7 +26,7 @@ public static class SteamShortcutManager
         var loginVdfFile = Path.Combine(steamPath, "config", "loginusers.vdf");
 
         if (!File.Exists(loginVdfFile))
-            throw new ArgumentException("SteamShortcutManager: login users.vdf not found");
+            throw new ArgumentException("SteamManager: login users.vdf not found");
 
         var content = File.ReadAllText(loginVdfFile);
 

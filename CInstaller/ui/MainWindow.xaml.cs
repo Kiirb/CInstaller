@@ -105,7 +105,7 @@ public partial class MainWindow
         statusLabel.Content = "Installation complete!";
         progressBar.Value = 100;
 
-        if (restartSteamFlag && SteamShortcutManager.IsSteamRunning())
+        if (restartSteamFlag && SteamManager.IsSteamRunning())
         {
             var result = MessageBox.Show(
                 "Steam Muss neu gestartet werden um alle änderungen zu übernehmen\n\nJetzt neustarten?",
