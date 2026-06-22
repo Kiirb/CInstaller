@@ -40,6 +40,23 @@ public partial class MainWindow
         
         await Task.Yield();
         
+        if (await Updater.CheckForUpdate())
+        {
+            //TODO Display current and new version in MessageBox
+            
+            var updateFlag = MessageBox.Show(
+                "update Gefunden, willst du jetzt updaten?",
+                "Hard Cleanup",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
+
+            if (updateFlag.Equals(MessageBoxResult.Yes))
+            {
+                Updater.RunUpdate();
+            }
+        }
+        
         var reporter = new ProgressReporter(progressBar, statusLabel);
 
         var steamPath = Installer.FindSteamPath();

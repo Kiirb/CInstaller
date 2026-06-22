@@ -274,10 +274,8 @@ public static class Installer
             _progress?.Report(percent, $"Extracting {entry.Name}");
         }
     }
-    
-    
-    
-    private static async Task<string> FindLatestGithubDownloadAsset(string repoOwner, string repoName, string searchPattern, string? token = null)
+
+    public static async Task<HttpResponseMessage> FindLatestGithubRelease(string repoOwner, string repoName, string? token = null)
     {
         var githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
         
@@ -286,7 +284,7 @@ public static class Installer
         
         var response = await HttpClient.GetAsync(githubUrl);
 
-        if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        if (response.StatusCode == HttpStatusCode.Forbidden)
         {
             if (response.Headers.TryGetValues("X-RateLimit-Reset", out var reset))
             {
@@ -296,6 +294,13 @@ public static class Installer
         }
 
         response.EnsureSuccessStatusCode();
+        
+        return response;
+    }
+    
+    public static async Task<string> FindLatestGithubDownloadAsset(string repoOwner, string repoName, string searchPattern, string? token = null)
+    {
+        var response = await FindLatestGithubRelease(repoOwner, repoName, token);
 
         var json = await response.Content.ReadAsStringAsync();
 
