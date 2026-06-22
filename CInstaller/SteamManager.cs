@@ -135,15 +135,14 @@ public static class SteamManager
 
         if (!IsSteamRunning())
         {
-            Process.Start(new ProcessStartInfo($"{steamExe}" ) { UseShellExecute = true }); //TODO maybe remove "-silent" on final build
+            Process.Start(new ProcessStartInfo($"{steamExe}" ) { UseShellExecute = true });
 
-            while (IsSteamRunning())
+            while (!IsSteamRunning())
             {
                 await Task.Delay(3000);
             }
         }
     }
-
 
     public static bool AddShortcut(string steamPath, string newGameFolderPath, string newGameExePath, string icon, long currentSteamUserId)
     {

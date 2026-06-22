@@ -15,12 +15,12 @@ public static class Installer
     private const int SteamGameId = 945360;
     private const string GameName = "Among us";
 
-    public static async Task<string> FindSteamPath()
+    public static string? FindSteamPath()
     {
         return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
     }
 
-    public static async Task<(string, string)> FindGameFolder(string steamPath)
+    public static (string, string) FindGameFolder(string steamPath)
     {
         var libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
         var regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
@@ -61,7 +61,10 @@ public static class Installer
         Console.Out.WriteLine(moddedFolder);
         
         _progress.NextStep(20);
-        await Task.Run(() => CopyDirectory(gameFolder, moddedFolder, progress));
+        await Task.Run(() =>
+        {
+            CopyDirectory(gameFolder, moddedFolder, progress);
+        });
         _progress.FinishStep();
         
         _progress.NextStep(30);
@@ -70,7 +73,10 @@ public static class Installer
         _progress.FinishStep();
         
         _progress?.NextStep(10);
-        ExtractZip(filePath, moddedFolder);
+        await Task.Run(() =>
+        {
+            ExtractZip(filePath, moddedFolder);
+        });
         File.Delete(filePath);
         _progress?.FinishStep();
         
@@ -196,10 +202,7 @@ public static class Installer
         Process.Start(steamExe);
     }
 
-    private static void CopyDirectory(
-        string sourceDir,
-        string destinationDir,
-        ProgressReporter reporter)
+    private static void CopyDirectory(string sourceDir, string destinationDir, ProgressReporter reporter)
     {
         var files = Directory.GetFiles(
             sourceDir,

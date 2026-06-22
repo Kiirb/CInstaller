@@ -42,7 +42,7 @@ public partial class MainWindow
         
         var reporter = new ProgressReporter(progressBar, statusLabel);
 
-        var steamPath = await Installer.FindSteamPath();
+        var steamPath = Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))
         {
             MessageBox.Show(
@@ -56,7 +56,7 @@ public partial class MainWindow
         }
         
         
-        (var steamCommon,var gameFolder) = await Installer.FindGameFolder(steamPath);
+        (var steamCommon,var gameFolder) = Installer.FindGameFolder(steamPath);
 
         if (string.IsNullOrEmpty(steamCommon) || string.IsNullOrEmpty(gameFolder))
         {
