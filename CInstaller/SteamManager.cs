@@ -128,18 +128,18 @@ public static class SteamManager
         return false;
     }
     
-    public static void LaunchSteam(string steamPath)
+    public static async Task LaunchSteam(string steamPath)
     {
         var steamExe = Path.Join(steamPath, "steam.exe");
         if  (!File.Exists(steamExe)) return;
 
         if (!IsSteamRunning())
         {
-            Process.Start(new ProcessStartInfo($"{steamExe} -silent" ) { UseShellExecute = true }); //TODO maybe remove "-silent" on final build
+            Process.Start(new ProcessStartInfo($"{steamExe}" ) { UseShellExecute = true }); //TODO maybe remove "-silent" on final build
 
             while (IsSteamRunning())
             {
-                Thread.Sleep(3000);
+                await Task.Delay(3000);
             }
         }
     }

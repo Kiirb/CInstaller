@@ -60,10 +60,11 @@ public static class Installer
         var moddedFolder = Path.Join(steamCommon, GameName + " Modded");
         Console.Out.WriteLine(moddedFolder);
         
-        _progress.Report(0, "Mod Install wird erstellt");
-        CopyDirectory(gameFolder, moddedFolder);
+        _progress.NextStep(20);
+        await Task.Run(() => CopyDirectory(gameFolder, moddedFolder, progress));
+        _progress.FinishStep();
         
-        _progress.NextStep(50);
+        _progress.NextStep(30);
         var baseModUrl = await FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
         var filePath = await DownloadFile(baseModUrl, moddedFolder);
         _progress.FinishStep();
@@ -117,7 +118,7 @@ public static class Installer
 
     public static async Task InstallGame(string steamPath)
     {
-        SteamManager.LaunchSteam(steamPath);
+        await SteamManager.LaunchSteam(steamPath);
         
         Process.Start(new ProcessStartInfo($"steam://install/{SteamGameId}") { UseShellExecute = true });
     }
@@ -129,7 +130,7 @@ public static class Installer
             Directory.Delete(dir, true);
         }
         
-        SteamManager.LaunchSteam(steamPath);
+        await SteamManager.LaunchSteam(steamPath);
         
         Process.Start(new ProcessStartInfo($"steam://validate/{SteamGameId}") { UseShellExecute = true });
 
@@ -140,11 +141,11 @@ public static class Installer
     {
         var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", SteamGameId.ToString());
         
-        Thread.Sleep(3000);
+        await Task.Delay(3000);
         
         while (Directory.Exists(gameDownloadFolder))
         {
-            Thread.Sleep(3000);
+            await Task.Delay(3000);
         }
     }
     
@@ -191,24 +192,39 @@ public static class Installer
         if (!File.Exists(steamExe)) return;
 
         Process.Start(steamExe, "-shutdown");
-        Thread.Sleep(3000);
+        await Task.Delay(3000);
         Process.Start(steamExe);
     }
 
-    private static void CopyDirectory(string sourceDir, string destinationDir)
+    private static void CopyDirectory(
+        string sourceDir,
+        string destinationDir,
+        ProgressReporter reporter)
     {
+        var files = Directory.GetFiles(
+            sourceDir,
+            "*",
+            SearchOption.AllDirectories);
+
+        long totalBytes = files.Sum(f => new FileInfo(f).Length);
+        long copiedBytes = 0;
+
         Directory.CreateDirectory(destinationDir);
 
-        foreach (var file in Directory.GetFiles(sourceDir))
+        foreach (string file in files)
         {
-            var destFile = Path.Join(destinationDir, Path.GetFileName(file));
-            File.Copy(file, destFile, true);
-        }
+            string relativePath = Path.GetRelativePath(sourceDir, file);
+            string destinationFile = Path.Combine(destinationDir, relativePath);
 
-        foreach (var directory in Directory.GetDirectories(sourceDir))
-        {
-            var destDir = Path.Join(destinationDir, Path.GetFileName(directory));
-            CopyDirectory(directory, destDir);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+
+            File.Copy(file, destinationFile, true);
+
+            copiedBytes += new FileInfo(file).Length;
+
+            double percent = copiedBytes * 100.0 / totalBytes;
+
+            reporter.Report(percent, "Mod Install wird erstellt");
         }
     }
 

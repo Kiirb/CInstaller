@@ -9,7 +9,7 @@ public class ProgressReporter(ProgressBar bar, Label label)
     
     public void Report(double progress, string message)
     {
-        bar.Dispatcher.Invoke(() =>
+        bar.Dispatcher.BeginInvoke(() =>
         {
             var total = _baseProgress + progress * _stepSize / 100;
             bar.Value = Math.Min(100, total);
