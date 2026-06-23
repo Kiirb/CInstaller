@@ -1,14 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <AssemblyName>CInstaller</AssemblyName>
+        <ApplicationIcon>CInstaller.ico</ApplicationIcon>
+        <Version>0.1.0</Version>
+        
         <TargetFramework>net8.0-windows</TargetFramework>
         <UseWPF>true</UseWPF>
         <OutputType>WinExe</OutputType>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <ApplicationIcon>CInstaller.ico</ApplicationIcon>
         <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-        <AssemblyVersion>0.1.0</AssemblyVersion>
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
     </PropertyGroup>
 
     <ItemGroup>
