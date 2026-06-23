@@ -8,6 +8,7 @@
         <Nullable>enable</Nullable>
         <ApplicationIcon>CInstaller.ico</ApplicationIcon>
         <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+        <AssemblyVersion>0.1.0</AssemblyVersion>
     </PropertyGroup>
 
     <ItemGroup>
