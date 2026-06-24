@@ -61,7 +61,7 @@ public class GithubManager
     }
 
 
-    public static async Task<string> DownloadFile(string url, string outputPath, ProgressReporter? progress)
+    public static async Task<string> DownloadFile(string url, string outputPath, ProgressReporter progress)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.ParseAdd("application/octet-stream");
