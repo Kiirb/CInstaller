@@ -42,10 +42,7 @@ jobs:
 
       - name: Publish
         run: |
-          dotnet publish `
-            "${{ steps.project.outputs.project }}" `
-            -c Release `
-            -o publish
+          dotnet publish "${{ steps.project.outputs.project }}" -c Release -o publish
 
       - name: Create versioned EXE
         run: |
@@ -64,9 +61,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.project.outputs.version }}
-          name: v${{ steps.project.outputs.version }}
-          generate_release_notes: true
+          tag_name: ${{ steps.project.outputs.version }}
+          name: ${{ steps.project.outputs.version }}
           files: |
             ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}-win-x64.exe
             ${{ steps.project.outputs.name }}-${{ steps.project.outputs.version }}-win-x64.zip

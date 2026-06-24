@@ -40,6 +40,8 @@ public partial class MainWindow
         
         await Task.Yield();
         
+        var reporter = new ProgressReporter(progressBar, statusLabel);
+        
         if (await Updater.CheckForUpdate())
         {
             //TODO Display current and new version in MessageBox
@@ -53,11 +55,11 @@ public partial class MainWindow
 
             if (updateFlag.Equals(MessageBoxResult.Yes))
             {
-                Updater.RunUpdate();
+                await Updater.RunUpdate(reporter);
+                Application.Current.Shutdown();
+                return;
             }
         }
-        
-        var reporter = new ProgressReporter(progressBar, statusLabel);
 
         var steamPath = Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))

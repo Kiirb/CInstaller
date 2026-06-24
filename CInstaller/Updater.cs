@@ -1,27 +1,49 @@
+using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
 using System.Reflection;
+using System.Text.Json;
 
 namespace CInstaller;
 
-public class Updater
+public static class Updater
 {
-    private static string GithubToken = "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";
+    private static HttpResponseMessage? ResponseCache;
     
     private static Version GetCurrentVersion() => Assembly.GetExecutingAssembly().GetName().Version!;
     
     public static async Task<bool> CheckForUpdate()
     {
         var currentVersion = GetCurrentVersion();
-        
-        //TODO 1. make release 2. get service token for access
-        var response = await Installer.FindLatestGithubRelease("Kiirb", "CInsatller", GithubToken);
-        
-        Console.WriteLine(response.Content);
+        ResponseCache = await GithubManager.FindLatestGithubRelease("Kiirb", "CInstaller");
 
-        return response.Version > currentVersion;
+        var json = await ResponseCache.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        var latestVersionString = doc.RootElement[0].GetProperty("tag_name").ToString();
+
+        Version.TryParse(latestVersionString, out Version? latestVersion);
+        
+        return latestVersion > currentVersion;
     }
 
-    public static void RunUpdate()
+    public static async Task RunUpdate(ProgressReporter reporter)
     {
+        var url = await GithubManager.FindLatestGithubDownloadAsset("Kiirb", "CInstaller", ".exe", ResponseCache);
         
+        reporter.NextStep(100);
+        var newFile = await GithubManager.DownloadFile(url, Directory.GetCurrentDirectory(), reporter);
+        reporter.FinishStep();
+
+        var currentFile = Environment.ProcessPath;
+        
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = $"/c timeout 2 && del {currentFile}",
+            CreateNoWindow = true,
+            UseShellExecute = false
+        });
+        
+        Process.Start(newFile);
     }
 }
