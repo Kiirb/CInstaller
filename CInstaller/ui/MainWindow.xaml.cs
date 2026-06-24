@@ -40,24 +40,29 @@ public partial class MainWindow
         
         await Task.Yield();
         
-        if (await Updater.CheckForUpdate())
+        var reporter = new ProgressReporter(progressBar, statusLabel);
+
+        var currentVersion = Updater.GetCurrentVersion();
+        var latestVersion = await Updater.GetLatestVersion();
+        
+        if (latestVersion > currentVersion)
         {
             //TODO Display current and new version in MessageBox
             
             var updateFlag = MessageBox.Show(
-                "update Gefunden, willst du jetzt updaten?",
-                "Hard Cleanup",
+                $"Jetzige Version: {currentVersion}\nNeuste Version: {latestVersion}.0\n\nJetzt updaten?",
+                "Update Gefunden",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question
             );
 
             if (updateFlag.Equals(MessageBoxResult.Yes))
             {
-                Updater.RunUpdate();
+                await Updater.RunUpdate(reporter);
+                Application.Current.Shutdown();
+                return;
             }
         }
-        
-        var reporter = new ProgressReporter(progressBar, statusLabel);
 
         var steamPath = Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))

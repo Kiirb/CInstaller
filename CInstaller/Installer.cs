@@ -1,9 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using System.Net;
 using System.Net.Http;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -12,7 +10,8 @@ namespace CInstaller;
 public static class Installer
 {
     private static ProgressReporter? _progress;
-    private static readonly HttpClient HttpClient = new();
+
+    
     private const int SteamGameId = 945360;
     private const string GameName = "Among us";
 
@@ -52,8 +51,6 @@ public static class Installer
     
     public static async Task<string> RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
     {
-        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CInstaller");
-        HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         _progress = progress;
         
         var moddedFolder = Path.Join(steamCommon, GameName + " Modded");
@@ -66,8 +63,8 @@ public static class Installer
         _progress.FinishStep();
         
         _progress.NextStep(30);
-        var baseModUrl = await FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
-        var filePath = await DownloadFile(baseModUrl, moddedFolder);
+        var baseModUrl = await GithubManager.FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
+        var filePath = await GithubManager.DownloadFile(baseModUrl, moddedFolder, _progress);
         _progress.FinishStep();
         
         _progress?.NextStep(10);
@@ -101,8 +98,8 @@ public static class Installer
         foreach (var plugin in plugins)
         {
             _progress?.NextStep(stepPerPlugin);
-            var pluginUrl = await FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
-            await DownloadFile(pluginUrl, pluginFolder);
+            var pluginUrl = await GithubManager.FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
+            await GithubManager.DownloadFile(pluginUrl, pluginFolder, _progress);
             _progress?.FinishStep();
         }
         
@@ -176,7 +173,7 @@ public static class Installer
         foreach (var asset in assets)
         {
             _progress?.NextStep(stepPerAsset);
-            var grid = await DownloadFile(asset.url, gridFolderPath);
+            var grid = await GithubManager.DownloadFile(asset.url, gridFolderPath, _progress);
             var renamedGrid = Path.Join(gridFolderPath, steamGridId + asset.fileEnding);
             File.Move(grid,  renamedGrid, true);
             _progress?.FinishStep();
@@ -273,83 +270,5 @@ public static class Installer
             var percent = (double)current / total * 100;
             _progress?.Report(percent, $"Extracting {entry.Name}");
         }
-    }
-
-    public static async Task<HttpResponseMessage> FindLatestGithubRelease(string repoOwner, string repoName, string? token = null)
-    {
-        var githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
-        
-        if (token is not null)
-            HttpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
-        
-        var response = await HttpClient.GetAsync(githubUrl);
-
-        if (response.StatusCode == HttpStatusCode.Forbidden)
-        {
-            if (response.Headers.TryGetValues("X-RateLimit-Reset", out var reset))
-            {
-                var resetTime = DateTimeOffset.FromUnixTimeSeconds(long.Parse(reset.First()));
-                throw new Exception($"GitHub rate limit exceeded. Try again at {resetTime.LocalDateTime}.");
-            }
-        }
-
-        response.EnsureSuccessStatusCode();
-        
-        return response;
-    }
-    
-    public static async Task<string> FindLatestGithubDownloadAsset(string repoOwner, string repoName, string searchPattern, string? token = null)
-    {
-        var response = await FindLatestGithubRelease(repoOwner, repoName, token);
-
-        var json = await response.Content.ReadAsStringAsync();
-
-        using var doc = JsonDocument.Parse(json);
-
-        var assets = doc.RootElement[0].GetProperty("assets");
-
-        foreach (var asset in assets.EnumerateArray())
-        {
-            var name = asset.GetProperty("name").GetString();
-            var url = asset.GetProperty("browser_download_url").GetString();
-
-            if (name != null && name.Contains(searchPattern))
-                return url!;
-        }
-
-        throw new Exception("No matching asset found.");
-    }
-
-
-    private static async Task<string> DownloadFile(string url, string outputPath)
-    {
-        var response = await HttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-
-        var filename = response.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? Path.GetFileName(url);
-        var outputFile = Path.Join(outputPath, filename);
-
-        using var stream = await response.Content.ReadAsStreamAsync();
-        using var file = File.Create(outputFile);
-
-        var buffer = new byte[8192];
-        long totalRead = 0;
-        int read;
-
-        while ((read = await stream.ReadAsync(buffer)) > 0)
-        {
-            await file.WriteAsync(buffer.AsMemory(0, read));
-            totalRead += read;
-
-            if (totalBytes > 0)
-            {
-                double percent = (double)totalRead / totalBytes * 100;
-                _progress?.Report(percent, $"Downloading {filename}");
-            }
-        }
-
-        return outputFile;
     }
 }
