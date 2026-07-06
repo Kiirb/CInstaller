@@ -2,25 +2,21 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace CInstaller;
 
-public static class Installer
+public class Installer(GameData Game)
 {
-    private static ProgressReporter? _progress;
-
     
-    private const int SteamGameId = 945360;
-    private const string GameName = "Among us";
-
-    public static string? FindSteamPath()
+    public string? FindSteamPath()
     {
         return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
     }
 
-    public static (string, string) FindGameFolder(string steamPath)
+    public (string, string) FindGameFolder(string steamPath)
     {
         var libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
         var regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
@@ -30,11 +26,11 @@ public static class Installer
             var path = lib.Groups[1].Value.Replace("\\\\", "\\");
             var appsBlock = lib.Groups[2].Value;
 
-            if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
+            if (Regex.IsMatch(appsBlock, $"\"{Game.SteamId}\""))
             {
                 var steamCommon = Path.Join(path, "steamapps", "common");
                 
-                var gameFolder = Path.Join(steamCommon, GameName);
+                var gameFolder = Path.Join(steamCommon, Game.Name);
 
                 if (!Directory.Exists(gameFolder))
                 {
@@ -49,31 +45,29 @@ public static class Installer
         return ("", "");
     }
     
-    public static async Task<string> RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
+    public async Task<string> RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
     {
-        _progress = progress;
+        var moddedFolder = Path.Join(steamCommon, Game.Name + " Modded");
         
-        var moddedFolder = Path.Join(steamCommon, GameName + " Modded");
-        
-        _progress.NextStep(20);
+        progress.NextStep(20);
         await Task.Run(() =>
         {
-            CopyDirectory(gameFolder, moddedFolder, progress);
+            Utils.CopyDirectory(gameFolder, moddedFolder, progress);
         });
-        _progress.FinishStep();
+        progress.FinishStep();
         
-        _progress.NextStep(30);
+        progress.NextStep(30);
         var baseModUrl = await GithubManager.FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
-        var filePath = await GithubManager.DownloadFile(baseModUrl, moddedFolder, _progress);
-        _progress.FinishStep();
+        var filePath = await GithubManager.DownloadFile(baseModUrl, moddedFolder, progress);
+        progress.FinishStep();
         
-        _progress?.NextStep(10);
+        progress?.NextStep(10);
         await Task.Run(() =>
         {
-            ExtractZip(filePath, moddedFolder);
+            Utils.ExtractZip(filePath, moddedFolder, progress);
         });
         File.Delete(filePath);
-        _progress?.FinishStep();
+        progress?.FinishStep();
         
         var pluginFolder = Path.Join(moddedFolder, "BepinEx", "plugins");
         if (!Directory.Exists(pluginFolder))
@@ -97,50 +91,43 @@ public static class Installer
         
         foreach (var plugin in plugins)
         {
-            _progress?.NextStep(stepPerPlugin);
+            progress?.NextStep(stepPerPlugin);
             var pluginUrl = await GithubManager.FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
-            await GithubManager.DownloadFile(pluginUrl, pluginFolder, _progress);
-            _progress?.FinishStep();
+            await GithubManager.DownloadFile(pluginUrl, pluginFolder, progress);
+            progress?.FinishStep();
         }
         
         Console.Out.WriteLine("Finished downloads");
 
         return moddedFolder;
     }
-
-    public static async Task<bool> AddToSteam(string steamPath, string moddedFolder)
+    
+    public async Task<bool> AddToSteam(string steamPath, string moddedFolder, ProgressReporter progress)
     {
-        var moddedExeFilePath = Path.Join(moddedFolder, GameName + ".exe");
+        var moddedExeFilePath = Path.Join(moddedFolder, Game.Name + ".exe");
         
         var currentSteamUserId = SteamManager.FindCurrentSteamUserId(steamPath);
-        var iconPath = await GetCustomAssets(steamPath, currentSteamUserId);
+        var iconPath = await GetCustomAssets(steamPath, currentSteamUserId, progress);
         return SteamManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
     }
-
-    public static async Task InstallGame(string steamPath)
+    
+    public async Task CleanUpGameFiles(string steamPath, string steamCommon)
     {
-        await SteamManager.LaunchSteam(steamPath);
-        
-        Process.Start(new ProcessStartInfo($"steam://install/{SteamGameId}") { UseShellExecute = true });
-    }
-
-    public static async Task CleanUpGameFiles(string steamPath, string steamCommon)
-    {
-        foreach (var dir in Directory.GetDirectories(steamCommon, $"{GameName}*", SearchOption.TopDirectoryOnly))
+        foreach (var dir in Directory.GetDirectories(steamCommon, $"{Game.Name}*", SearchOption.TopDirectoryOnly))
         {
             Directory.Delete(dir, true);
         }
         
         await SteamManager.LaunchSteam(steamPath);
         
-        Process.Start(new ProcessStartInfo($"steam://validate/{SteamGameId}") { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo($"steam://validate/{Game.SteamId}") { UseShellExecute = true });
 
         await TrackGameDownload(steamCommon);
     }
     
-    private static async Task TrackGameDownload(string steamCommon)
+    private async Task TrackGameDownload(string steamCommon)
     {
-        var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", SteamGameId.ToString());
+        var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", Game.SteamId.ToString());
         
         await Task.Delay(3000);
         
@@ -150,7 +137,7 @@ public static class Installer
         }
     }
     
-    private static async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId)
+    private async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId, ProgressReporter progress)
     {
         var gridFolderPath = Path.Join(steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
         if (!Directory.Exists(gridFolderPath)) Directory.CreateDirectory(gridFolderPath);
@@ -172,103 +159,15 @@ public static class Installer
         
         foreach (var asset in assets)
         {
-            _progress?.NextStep(stepPerAsset);
-            var grid = await GithubManager.DownloadFile(asset.url, gridFolderPath, _progress);
+            progress?.NextStep(stepPerAsset);
+            var grid = await GithubManager.DownloadFile(asset.url, gridFolderPath, progress);
             var renamedGrid = Path.Join(gridFolderPath, steamGridId + asset.fileEnding);
             File.Move(grid,  renamedGrid, true);
-            _progress?.FinishStep();
+            progress?.FinishStep();
 
             if (asset == assets.Last()) return renamedGrid;
         }
 
         return string.Empty;
-    }
-
-    public static async Task RestartSteam(string steamPath)
-    {
-        if (!SteamManager.IsSteamRunning()) return;
-        
-        var steamExe = Path.Combine(steamPath, "steam.exe");
-
-        if (!File.Exists(steamExe)) return;
-
-        Process.Start(steamExe, "-shutdown");
-        await Task.Delay(3000);
-        Process.Start(steamExe);
-    }
-
-    private static void CopyDirectory(string sourceDir, string destinationDir, ProgressReporter reporter)
-    {
-        var files = Directory.GetFiles(
-            sourceDir,
-            "*",
-            SearchOption.AllDirectories);
-
-        long totalBytes = files.Sum(f => new FileInfo(f).Length);
-        long copiedBytes = 0;
-
-        Directory.CreateDirectory(destinationDir);
-
-        foreach (string file in files)
-        {
-            string relativePath = Path.GetRelativePath(sourceDir, file);
-            string destinationFile = Path.Combine(destinationDir, relativePath);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
-
-            File.Copy(file, destinationFile, true);
-
-            copiedBytes += new FileInfo(file).Length;
-
-            double percent = copiedBytes * 100.0 / totalBytes;
-
-            reporter.Report(percent, "Mod Install wird erstellt");
-        }
-    }
-
-    private static void ExtractZip(string zipPath, string extractPath)
-    {
-        using var archive = ZipFile.OpenRead(zipPath);
-
-        var roots = archive.Entries
-            .Select(e => e.FullName.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault())
-            .Where(x => x != null)
-            .Distinct()
-            .ToList();
-
-        var singleRootFolder =
-            roots.Count == 1 &&
-            archive.Entries.All(e => e.FullName.StartsWith(roots[0] + "/"));
-
-        var total = archive.Entries.Count;
-        var current = 0;
-        
-        foreach (var entry in archive.Entries)
-        {
-            current++;
-            
-            var relativePath = entry.FullName;
-
-            if (singleRootFolder)
-            {
-                // Remove the root folder from the path
-                relativePath = relativePath[roots[0]!.Length..].TrimStart('/');
-            }
-
-            if (string.IsNullOrEmpty(relativePath))
-                continue;
-
-            string destinationPath = Path.Combine(extractPath, relativePath);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-
-            if (!string.IsNullOrEmpty(entry.Name)) // skip directories
-            {
-                entry.ExtractToFile(destinationPath, true);
-            }
-            
-            var percent = (double)current / total * 100;
-            _progress?.Report(percent, $"Extracting {entry.Name}");
-        }
     }
 }

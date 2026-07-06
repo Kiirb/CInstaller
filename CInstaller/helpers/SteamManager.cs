@@ -143,22 +143,39 @@ public static class SteamManager
             }
         }
     }
+    
+    public static async Task RestartSteam(string steamPath)
+    {
+        if (!SteamManager.IsSteamRunning()) return;
+        
+        var steamExe = Path.Combine(steamPath, "steam.exe");
+
+        if (!File.Exists(steamExe)) return;
+
+        Process.Start(steamExe, "-shutdown");
+        await Task.Delay(3000);
+        Process.Start(steamExe);
+    }
+
+    public static async Task InstallGame(string steamPath, int steamGameId)
+    {
+        await LaunchSteam(steamPath);
+        
+        Process.Start(new ProcessStartInfo($"steam://install/{steamGameId}") { UseShellExecute = true });
+    }
 
     public static bool AddShortcut(string steamPath, string newGameFolderPath, string newGameExePath, string icon, long currentSteamUserId)
     {
         var shortcutVdfFile = Path.Combine(steamPath, "userdata", currentSteamUserId.ToString(), "config", "shortcuts.vdf");
         
         var rootMap = ParseShortcuts(shortcutVdfFile);
+
+        if (ShortcutExists(rootMap, newGameFolderPath, newGameExePath)) return false;
         
-        if (!ShortcutExists(rootMap, newGameFolderPath, newGameExePath))
-        {
-            AddNewGameMap(rootMap, newGameFolderPath, newGameExePath, icon);
+        AddNewGameMap(rootMap, newGameFolderPath, newGameExePath, icon);
 
-            SaveShortcuts(shortcutVdfFile, rootMap);
+        SaveShortcuts(shortcutVdfFile, rootMap);
 
-            return true;
-        }
-
-        return false;
+        return true;
     }
 }
