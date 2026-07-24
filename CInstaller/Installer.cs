@@ -4,6 +4,8 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using CInstaller.entities;
+using CInstaller.helpers;
 using Microsoft.Win32;
 
 namespace CInstaller;
@@ -60,8 +62,8 @@ public static class Installer
         progress.FinishStep();
         
         progress.NextStep(30);
-        string baseModUrl = await GithubManager.FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
-        string filePath = await GithubManager.DownloadFile(baseModUrl, moddedFolder, progress);
+        string baseModUrl = await RemoteManager.FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
+        string filePath = await RemoteManager.DownloadFile(baseModUrl, moddedFolder, progress);
         progress.FinishStep();
         
         progress?.NextStep(10);
@@ -90,13 +92,13 @@ public static class Installer
             ("astra1dev", "AUnlocker")
         ];
 
-        var stepPerPlugin = 30 / plugins.Count;
+        int stepPerPlugin = 30 / plugins.Count;
         
-        foreach (var plugin in plugins)
+        foreach ((string repoOwner, string repoName) plugin in plugins)
         {
             progress?.NextStep(stepPerPlugin);
-            var pluginUrl = await GithubManager.FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
-            await GithubManager.DownloadFile(pluginUrl, pluginFolder, progress);
+            string pluginUrl = await RemoteManager.FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
+            await RemoteManager.DownloadFile(pluginUrl, pluginFolder, progress);
             progress?.FinishStep();
         }
         
@@ -163,7 +165,7 @@ public static class Installer
         foreach (var asset in assets)
         {
             progress?.NextStep(stepPerAsset);
-            var grid = await GithubManager.DownloadFile(asset.url, gridFolderPath, progress);
+            var grid = await RemoteManager.DownloadFile(asset.url, gridFolderPath, progress);
             var renamedGrid = Path.Join(gridFolderPath, steamGridId + asset.fileEnding);
             File.Move(grid,  renamedGrid, true);
             progress?.FinishStep();

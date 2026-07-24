@@ -3,6 +3,8 @@ using System.IO;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
+using CInstaller.entities;
+using CInstaller.helpers;
 
 namespace CInstaller;
 
@@ -14,7 +16,7 @@ public static class Updater
     
     public static async Task<Version?> GetLatestVersion()
     {
-        ResponseCache = await GithubManager.FindLatestGithubRelease("Kiirb", "CInstaller");
+        ResponseCache = await RemoteManager.FindLatestGithubRelease("Kiirb", "CInstaller");
 
         var json = await ResponseCache.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
@@ -27,10 +29,10 @@ public static class Updater
 
     public static async Task RunUpdate(ProgressReporter reporter)
     {
-        var url = await GithubManager.FindLatestGithubDownloadAsset("Kiirb", "CInstaller", ".exe", ResponseCache);
+        var url = await RemoteManager.FindLatestGithubDownloadAsset("Kiirb", "CInstaller", ".exe", ResponseCache);
         
         reporter.NextStep(100);
-        var newFile = await GithubManager.DownloadFile(url, Directory.GetCurrentDirectory(), reporter);
+        var newFile = await RemoteManager.DownloadFile(url, Directory.GetCurrentDirectory(), reporter);
         reporter.FinishStep();
 
         var currentFile = Environment.ProcessPath;

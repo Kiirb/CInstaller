@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 
-namespace CInstaller;
+namespace CInstaller.entities;
 
 public class ProgressReporter(ProgressBar bar, Label label)
 {

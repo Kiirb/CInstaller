@@ -3,13 +3,15 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using CInstaller.entities;
 
-namespace CInstaller;
+namespace CInstaller.helpers;
 
-public class GithubManager
+public class RemoteManager
 {
     private static readonly HttpClient HttpClient = new();
     private const string GithubToken = "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";
+    private const string ConfigUrl = "";
     
     public static async Task<HttpResponseMessage> FindLatestGithubRelease(string repoOwner, string repoName)
     {
@@ -42,16 +44,16 @@ public class GithubManager
     {
         response ??= await FindLatestGithubRelease(repoOwner, repoName);
 
-        var json = await response.Content.ReadAsStringAsync();
+        string json = await response.Content.ReadAsStringAsync();
 
-        using var doc = JsonDocument.Parse(json);
+        using JsonDocument doc = JsonDocument.Parse(json);
 
-        var assets = doc.RootElement[0].GetProperty("assets");
+        JsonElement assets = doc.RootElement[0].GetProperty("assets");
 
-        foreach (var asset in assets.EnumerateArray())
+        foreach (JsonElement asset in assets.EnumerateArray())
         {
-            var name = asset.GetProperty("name").GetString();
-            var url = asset.GetProperty("url").GetString();
+            string? name = asset.GetProperty("name").GetString();
+            string? url = asset.GetProperty("url").GetString();
 
             if (name != null && name.Contains(searchPattern))
                 return url!;
@@ -63,20 +65,20 @@ public class GithubManager
 
     public static async Task<string> DownloadFile(string url, string outputPath, ProgressReporter progress)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.ParseAdd("application/octet-stream");
 
-        var response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
 
-        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+        long totalBytes = response.Content.Headers.ContentLength ?? -1L;
 
-        var filename = response.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? Path.GetFileName(url);
-        var outputFile = Path.Join(outputPath, filename);
+        string filename = response.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? Path.GetFileName(url);
+        string outputFile = Path.Join(outputPath, filename);
 
-        await using var stream = await response.Content.ReadAsStreamAsync();
-        await using var file = File.Create(outputFile);
+        await using Stream stream = await response.Content.ReadAsStreamAsync();
+        await using FileStream file = File.Create(outputFile);
 
-        var buffer = new byte[8192];
+        byte[] buffer = new byte[8192];
         long totalRead = 0;
         int read;
 
@@ -93,5 +95,10 @@ public class GithubManager
         }
 
         return outputFile;
+    }
+
+    public static void GetPluginConfig()
+    {
+        
     }
 }

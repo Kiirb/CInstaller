@@ -1,8 +1,8 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
-using System.Diagnostics;
 
-namespace CInstaller;
+namespace CInstaller.helpers;
 
 public static class SteamManager
 {
@@ -10,7 +10,7 @@ public static class SteamManager
 
     public static string FindSteamPathFromGame(string gamePath)
     {
-        var steamFolder = Directory.GetParent(gamePath)?.Parent?.Parent;
+        DirectoryInfo? steamFolder = Directory.GetParent(gamePath)?.Parent?.Parent;
 
         if (steamFolder != null && steamFolder.Name.Equals("Steam", StringComparison.OrdinalIgnoreCase))
         {
@@ -23,24 +23,24 @@ public static class SteamManager
 
     public static long FindCurrentSteamUserId(string steamPath)
     {
-        var loginVdfFile = Path.Combine(steamPath, "config", "loginusers.vdf");
+        string loginVdfFile = Path.Combine(steamPath, "config", "loginusers.vdf");
 
         if (!File.Exists(loginVdfFile))
             throw new ArgumentException("SteamManager: login users.vdf not found");
 
-        var content = File.ReadAllText(loginVdfFile);
+        string content = File.ReadAllText(loginVdfFile);
 
-        var userBlock = new Regex(
+        Regex userBlock = new Regex(
             "\"(\\d{17})\"\\s*\\{[^}]*?\"MostRecent\"\\s*\"1\"",
             RegexOptions.Singleline
         );
 
-        var match = userBlock.Match(content);
+        Match match = userBlock.Match(content);
 
         if (!match.Success)
             throw new Exception("No logged-in Steam user found");
 
-        var steamId64 = long.Parse(match.Groups[1].Value);
+        long steamId64 = long.Parse(match.Groups[1].Value);
 
         return steamId64 - SteamId64Base;
     }
@@ -62,18 +62,18 @@ public static class SteamManager
 
     private static void ClearVdfFile(Dictionary<string, object> rootMap)
     {
-        var shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
+        Dictionary<string, object> shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
         shortcutMap.Clear();
     }
 
     private static void AddNewGameMap(Dictionary<string, object> rootMap, string newGameFolderPath, string newGameExePath, string icon)
     {
-        var shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
+        Dictionary<string, object> shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
 
-        var nextIndex = shortcutMap.Count;
-        var key = nextIndex.ToString();
+        int nextIndex = shortcutMap.Count;
+        string key = nextIndex.ToString();
 
-        var newGameShortcut = new Dictionary<string, object>();
+        Dictionary<string, object> newGameShortcut = new Dictionary<string, object>();
 
         newGameShortcut["appid"] = -305070;
         newGameShortcut["AppName"] = Path.GetFileName(newGameFolderPath);
@@ -104,14 +104,14 @@ public static class SteamManager
 
     private static bool ShortcutExists(Dictionary<string, object> rootMap, string newGameFolderPath, string newGameExePath)
     {
-        var shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
+        Dictionary<string, object> shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
 
-        foreach (var value in shortcutMap.Values)
+        foreach (object value in shortcutMap.Values)
         {
-            var game = (Dictionary<string, object>)value;
+            Dictionary<string, object> game = (Dictionary<string, object>)value;
             
-            var exeRaw = game.ContainsKey("Exe") ? game["Exe"].ToString() : null;
-            var dirRaw = game.ContainsKey("StartDir") ? game["StartDir"].ToString() : null;
+            string? exeRaw = game.ContainsKey("Exe") ? game["Exe"].ToString() : null;
+            string? dirRaw = game.ContainsKey("StartDir") ? game["StartDir"].ToString() : null;
 
             if (exeRaw == null || dirRaw == null)
                 continue;
