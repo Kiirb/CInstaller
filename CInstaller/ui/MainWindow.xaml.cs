@@ -1,8 +1,8 @@
-using System.Windows;
 using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Interop;
 
-namespace CInstaller;
+namespace CInstaller.ui;
 
 public partial class MainWindow
 {
@@ -11,7 +11,8 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
-        Loaded += testingStuff;
+        SourceInitialized += (_, _) => EnableDarkTitleBar();
+        Loaded += MainWindow_Loaded;
     }
 
     [DllImport("dwmapi.dll")]
@@ -23,36 +24,23 @@ public partial class MainWindow
 
     private void EnableDarkTitleBar()
     {
-        var hwnd = new WindowInteropHelper(this).Handle;
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
 
-        var useDark = 1;
+        int useDark = 1;
 
-        DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_USE_IMMERSIVE_DARK_MODE,
-            ref useDark,
-            sizeof(int));
-    }
-
-    private void testingStuff(object sender, RoutedEventArgs e)
-    {
-        GameListPoller.Testing();
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
     }
     
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        EnableDarkTitleBar();
+        ProgressReporter progress = new(progressBar, statusLabel);
         
-        await Task.Yield();
-        
-        var progress = new ProgressReporter(progressBar, statusLabel);
-        
-        var currentVersion = Updater.GetCurrentVersion();
-        var latestVersion = await Updater.GetLatestVersion();
+        Version currentVersion = Updater.GetCurrentVersion();
+        Version? latestVersion = await Updater.GetLatestVersion();
         
         if (latestVersion > currentVersion)
         {
-            var updateFlag = MessageBox.Show(
+            MessageBoxResult updateFlag = MessageBox.Show(
                 $"Jetzige Version: {currentVersion}\nNeuste Version: {latestVersion}.0\n\nJetzt updaten?",
                 "Update Gefunden",
                 MessageBoxButton.YesNo,
@@ -67,15 +55,7 @@ public partial class MainWindow
             }
         }
         
-        var game = new GameData()
-        {
-            Name = "Among us",
-            SteamId = 945360
-        };
-        
-        var installer = new Installer(game);
-
-        var steamPath = installer.FindSteamPath();
+        string? steamPath = Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))
         {
             MessageBox.Show(
@@ -88,11 +68,11 @@ public partial class MainWindow
             return;
         }
         
-        (var steamCommon,var gameFolder) = installer.FindGameFolder(steamPath);
+        (string steamCommon,string gameFolder) = Installer.FindGameFolder(steamPath);
 
         if (string.IsNullOrEmpty(steamCommon) || string.IsNullOrEmpty(gameFolder))
         {
-            var installGameFlag = MessageBox.Show(
+            MessageBoxResult installGameFlag = MessageBox.Show(
                 "Among us ist nicht installiert, installiere es und starte den Installer neu",
                 "Not installed",
                 MessageBoxButton.OKCancel,
@@ -101,14 +81,14 @@ public partial class MainWindow
 
             if (installGameFlag.Equals(MessageBoxResult.OK))
             {
-                await SteamManager.InstallGame(steamPath, game.SteamId);
+                await SteamManager.InstallGame(steamPath, Installer.getSteamGameId());
             }
 
             Application.Current.Shutdown();
             return;
         }
         
-        var cleanupFlag = MessageBox.Show(
+        MessageBoxResult cleanupFlag = MessageBox.Show(
             "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?",
             "Hard Cleanup",
             MessageBoxButton.YesNo,
@@ -118,11 +98,11 @@ public partial class MainWindow
         if (cleanupFlag.Equals(MessageBoxResult.Yes))
         {
             progress.Report(0, "Wartet auf game reinstall");
-            await installer.CleanUpGameFiles(steamPath, steamCommon);
+            await Installer.CleanUpGameFiles(steamPath, steamCommon);
         }
         
         progress.Report(0, "Starte Installer");
-        var moddedFolder = await installer.RunInstaller(progress, steamCommon, gameFolder);
+        string moddedFolder = await Installer.RunInstaller(progress, steamCommon, gameFolder);
         if (string.IsNullOrEmpty(moddedFolder))
         {
             MessageBox.Show(
@@ -133,14 +113,14 @@ public partial class MainWindow
             );
         }
         
-        var restartSteamFlag = await installer.AddToSteam(steamPath, moddedFolder, progress);
+        bool restartSteamFlag = await Installer.AddToSteam(steamPath, moddedFolder, progress);
         
         statusLabel.Content = "Installation complete!";
         progressBar.Value = 100;
 
         if (restartSteamFlag && SteamManager.IsSteamRunning())
         {
-            var result = MessageBox.Show(
+            MessageBoxResult result = MessageBox.Show(
                 "Steam Muss neu gestartet werden um alle änderungen zu übernehmen\n\nJetzt neustarten?",
                 "Confirmation",
                 MessageBoxButton.OKCancel,

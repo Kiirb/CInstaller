@@ -8,29 +8,32 @@ using Microsoft.Win32;
 
 namespace CInstaller;
 
-public class Installer(GameData Game)
+public static class Installer
 {
     
-    public string? FindSteamPath()
+    private const int SteamGameId = 945360;
+    private const string GameName = "Among us";
+
+    public static string? FindSteamPath()
     {
         return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
     }
 
-    public (string, string) FindGameFolder(string steamPath)
+    public static (string, string) FindGameFolder(string steamPath)
     {
-        var libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
-        var regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
+        string libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
+        Regex regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
         
         foreach (Match lib in regex.Matches(File.ReadAllText(libraryFolderFile)))
         {
-            var path = lib.Groups[1].Value.Replace("\\\\", "\\");
-            var appsBlock = lib.Groups[2].Value;
+            string path = lib.Groups[1].Value.Replace("\\\\", "\\");
+            string appsBlock = lib.Groups[2].Value;
 
-            if (Regex.IsMatch(appsBlock, $"\"{Game.SteamId}\""))
+            if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
             {
-                var steamCommon = Path.Join(path, "steamapps", "common");
+                string steamCommon = Path.Join(path, "steamapps", "common");
                 
-                var gameFolder = Path.Join(steamCommon, Game.Name);
+                string gameFolder = Path.Join(steamCommon, GameName);
 
                 if (!Directory.Exists(gameFolder))
                 {
@@ -45,9 +48,9 @@ public class Installer(GameData Game)
         return ("", "");
     }
     
-    public async Task<string> RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
+    public static async Task<string> RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
     {
-        var moddedFolder = Path.Join(steamCommon, Game.Name + " Modded");
+        string moddedFolder = Path.Join(steamCommon, GameName + " Modded");
         
         progress.NextStep(20);
         await Task.Run(() =>
@@ -57,8 +60,8 @@ public class Installer(GameData Game)
         progress.FinishStep();
         
         progress.NextStep(30);
-        var baseModUrl = await GithubManager.FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
-        var filePath = await GithubManager.DownloadFile(baseModUrl, moddedFolder, progress);
+        string baseModUrl = await GithubManager.FindLatestGithubDownloadAsset("AU-Avengers", "TOU-Mira", "-steam-itch.zip");
+        string filePath = await GithubManager.DownloadFile(baseModUrl, moddedFolder, progress);
         progress.FinishStep();
         
         progress?.NextStep(10);
@@ -69,7 +72,7 @@ public class Installer(GameData Game)
         File.Delete(filePath);
         progress?.FinishStep();
         
-        var pluginFolder = Path.Join(moddedFolder, "BepinEx", "plugins");
+        string pluginFolder = Path.Join(moddedFolder, "BepinEx", "plugins");
         if (!Directory.Exists(pluginFolder))
         {
             Console.Write(pluginFolder + " not found");
@@ -101,33 +104,33 @@ public class Installer(GameData Game)
 
         return moddedFolder;
     }
-    
-    public async Task<bool> AddToSteam(string steamPath, string moddedFolder, ProgressReporter progress)
+
+    public static async Task<bool> AddToSteam(string steamPath, string moddedFolder, ProgressReporter progress)
     {
-        var moddedExeFilePath = Path.Join(moddedFolder, Game.Name + ".exe");
+        string moddedExeFilePath = Path.Join(moddedFolder, GameName + ".exe");
         
-        var currentSteamUserId = SteamManager.FindCurrentSteamUserId(steamPath);
-        var iconPath = await GetCustomAssets(steamPath, currentSteamUserId, progress);
+        long currentSteamUserId = SteamManager.FindCurrentSteamUserId(steamPath);
+        string iconPath = await GetCustomAssets(steamPath, currentSteamUserId, progress);
         return SteamManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
     }
-    
-    public async Task CleanUpGameFiles(string steamPath, string steamCommon)
+
+    public static async Task CleanUpGameFiles(string steamPath, string steamCommon)
     {
-        foreach (var dir in Directory.GetDirectories(steamCommon, $"{Game.Name}*", SearchOption.TopDirectoryOnly))
+        foreach (string dir in Directory.GetDirectories(steamCommon, $"{GameName}*", SearchOption.TopDirectoryOnly))
         {
             Directory.Delete(dir, true);
         }
         
         await SteamManager.LaunchSteam(steamPath);
         
-        Process.Start(new ProcessStartInfo($"steam://validate/{Game.SteamId}") { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo($"steam://validate/{SteamGameId}") { UseShellExecute = true });
 
         await TrackGameDownload(steamCommon);
     }
     
-    private async Task TrackGameDownload(string steamCommon)
+    private static async Task TrackGameDownload(string steamCommon)
     {
-        var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", Game.SteamId.ToString());
+        var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", SteamGameId.ToString());
         
         await Task.Delay(3000);
         
@@ -137,9 +140,9 @@ public class Installer(GameData Game)
         }
     }
     
-    private async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId, ProgressReporter progress)
+    private static async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId, ProgressReporter progress)
     {
-        var gridFolderPath = Path.Join(steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
+        string gridFolderPath = Path.Join(steamPath, "userdata", currentSteamUserId.ToString(), "config", "grid");
         if (!Directory.Exists(gridFolderPath)) Directory.CreateDirectory(gridFolderPath);
             
         const string steamGridId = "4294662226"; //only if game id is -305070
@@ -151,7 +154,7 @@ public class Installer(GameData Game)
             ("https://cdn2.steamgriddb.com/icon/588bc7654c8815a85a09b0bc6d82a29f.png", "_icon.png")
         ];
 
-        var stepPerAsset = 10 / assets.Count;
+        int stepPerAsset = 10 / assets.Count;
         
         const string logoConfig =
             "{\"nVersion\":1,\"logoPosition\":{\"pinnedPosition\":\"CenterCenter\",\"nWidthPct\":23.704171934260415,\"nHeightPct\":65.2777777777778}}"; //make actual json reader/write if i feel like it
@@ -169,5 +172,10 @@ public class Installer(GameData Game)
         }
 
         return string.Empty;
+    }
+
+    public static int getSteamGameId()
+    {
+        return SteamGameId;
     }
 }
