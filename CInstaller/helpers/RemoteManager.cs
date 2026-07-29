@@ -7,15 +7,16 @@ using CInstaller.entities;
 
 namespace CInstaller.helpers;
 
-public class RemoteManager
+public static class RemoteManager
 {
     private static readonly HttpClient HttpClient = new();
+    private static readonly HttpClient ConfigHttpClient = new();
     private const string GithubToken = "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";
-    private const string ConfigUrl = "";
+    private const string ConfigUrl = "https://gist.github.com/Kiirb/b96f6b5f2268f239fc387222aa3795be/raw";
     
     public static async Task<HttpResponseMessage> FindLatestGithubRelease(string repoOwner, string repoName)
     {
-        var githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
+        string githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
 
         if (HttpClient.DefaultRequestHeaders.Authorization == null)
         {
@@ -24,7 +25,7 @@ public class RemoteManager
             HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Updater");
         }
         
-        var response = await HttpClient.GetAsync(githubUrl);
+        HttpResponseMessage response = await HttpClient.GetAsync(githubUrl);
 
         if (response.StatusCode == HttpStatusCode.Forbidden)
         {
@@ -97,8 +98,18 @@ public class RemoteManager
         return outputFile;
     }
 
-    public static void GetPluginConfig()
+    public static async Task<List<GithubRepo>> GetPluginConfig()
     {
-        
+        string json = await ConfigHttpClient.GetStringAsync(ConfigUrl);
+
+        List<GithubRepo>? repos = JsonSerializer.Deserialize<List<GithubRepo>>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        if (repos == null || repos.Count == 0)
+            throw new Exception("Plugin config JSON was empty or invalid.");
+
+        return repos;
     }
 }

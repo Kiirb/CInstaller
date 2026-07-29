@@ -66,13 +66,13 @@ public static class Installer
         string filePath = await RemoteManager.DownloadFile(baseModUrl, moddedFolder, progress);
         progress.FinishStep();
         
-        progress?.NextStep(10);
+        progress.NextStep(10);
         await Task.Run(() =>
         {
             Utils.ExtractZip(filePath, moddedFolder, progress);
         });
         File.Delete(filePath);
-        progress?.FinishStep();
+        progress.FinishStep();
         
         string pluginFolder = Path.Join(moddedFolder, "BepinEx", "plugins");
         if (!Directory.Exists(pluginFolder))
@@ -83,23 +83,16 @@ public static class Installer
         }
                 
         File.Delete(Path.Join(pluginFolder, "AUnlocker.dll"));
-        List<(string repoOwner, string repoName)> plugins = 
-        [
-            ("SubmergedAmongUs","Submerged"),
-            ("DigiWorm0","LevelImposter"),
-            ("rewalo","TownOfUsMiraRolesExtension"),
-            ("xChipseq","ModExplorer"),
-            ("astra1dev", "AUnlocker")
-        ];
+        List<GithubRepo> plugins = await RemoteManager.GetPluginConfig();
 
         int stepPerPlugin = 30 / plugins.Count;
-        
-        foreach ((string repoOwner, string repoName) plugin in plugins)
+
+        foreach (GithubRepo plugin in plugins)
         {
-            progress?.NextStep(stepPerPlugin);
-            string pluginUrl = await RemoteManager.FindLatestGithubDownloadAsset(plugin.repoOwner, plugin.repoName, ".dll");
+            progress.NextStep(stepPerPlugin);
+            string pluginUrl = await RemoteManager.FindLatestGithubDownloadAsset(plugin.RepoOwner, plugin.RepoName, plugin.SearchPattern);
             await RemoteManager.DownloadFile(pluginUrl, pluginFolder, progress);
-            progress?.FinishStep();
+            progress.FinishStep();
         }
         
         Console.Out.WriteLine("Finished downloads");
