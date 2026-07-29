@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -32,11 +33,9 @@ public partial class MainWindow
 
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
     }
-    
-    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+
+    private async void CheckUpdate(ProgressReporter progress)
     {
-        ProgressReporter progress = new(progressBar, statusLabel);
-        
         Version currentVersion = Updater.GetCurrentVersion();
         Version? latestVersion = await Updater.GetLatestVersion();
         
@@ -56,6 +55,13 @@ public partial class MainWindow
                 return;
             }
         }
+    }
+    
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        ProgressReporter progress = new(progressBar, statusLabel);
+        
+        CheckUpdate(progress);
         
         string? steamPath = Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))
@@ -70,9 +76,9 @@ public partial class MainWindow
             return;
         }
         
-        (string steamCommon,string gameFolder) = Installer.FindGameFolder(steamPath);
+        string steamCommon = Installer.FindSteamCommon(steamPath);
 
-        if (string.IsNullOrEmpty(steamCommon) || string.IsNullOrEmpty(gameFolder))
+        if (string.IsNullOrEmpty(steamCommon) || !Directory.Exists(Path.Join(steamCommon, Installer.GameName)))
         {
             MessageBoxResult installGameFlag = MessageBox.Show(
                 "Among us ist nicht installiert, installiere es und starte den Installer neu",
@@ -83,28 +89,15 @@ public partial class MainWindow
 
             if (installGameFlag.Equals(MessageBoxResult.OK))
             {
-                await SteamManager.InstallGame(steamPath, Installer.getSteamGameId());
+                await SteamManager.InstallGame(steamPath, Installer.SteamGameId);
             }
 
             Application.Current.Shutdown();
             return;
         }
         
-        MessageBoxResult cleanupFlag = MessageBox.Show(
-            "Sollen deine existierenden Among Us Installs aufgeräumt und neu installiert werden?",
-            "Hard Cleanup",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question
-        );
-        
-        if (cleanupFlag.Equals(MessageBoxResult.Yes))
-        {
-            progress.Report(0, "Wartet auf game reinstall");
-            await Installer.CleanUpGameFiles(steamPath, steamCommon);
-        }
-        
         progress.Report(0, "Starte Installer");
-        string moddedFolder = await Installer.RunInstaller(progress, steamCommon, gameFolder);
+        string moddedFolder = await Installer.RunInstaller(progress, steamCommon);
         if (string.IsNullOrEmpty(moddedFolder))
         {
             MessageBox.Show(

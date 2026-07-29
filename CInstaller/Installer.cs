@@ -13,15 +13,15 @@ namespace CInstaller;
 public static class Installer
 {
     
-    private const int SteamGameId = 945360;
-    private const string GameName = "Among us";
+    public const int SteamGameId = 945360;
+    public const string GameName = "Among Us";
 
     public static string? FindSteamPath()
     {
         return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
     }
 
-    public static (string, string) FindGameFolder(string steamPath)
+    public static string FindSteamCommon(string steamPath)
     {
         string libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
         Regex regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
@@ -33,31 +33,22 @@ public static class Installer
 
             if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
             {
-                string steamCommon = Path.Join(path, "steamapps", "common");
-                
-                string gameFolder = Path.Join(steamCommon, GameName);
-
-                if (!Directory.Exists(gameFolder))
-                {
-                    Console.Write($"{gameFolder} doesn't exist");
-                    gameFolder = "";
-                }
-        
-                return (steamCommon, gameFolder);
+                return Path.Join(path, "steamapps", "common");
             }
         }
         Console.Out.WriteLine("SteamCommon not found");
-        return ("", "");
+        return "";
     }
     
-    public static async Task<string> RunInstaller(ProgressReporter progress, string steamCommon, string gameFolder)
+    public static async Task<string> RunInstaller(ProgressReporter progress, string steamCommon)
     {
+        string gameFolder = Path.Join(steamCommon, GameName);
         string moddedFolder = Path.Join(steamCommon, GameName + " Modded");
         
         progress.NextStep(20);
         await Task.Run(() =>
         {
-            Utils.CopyDirectory(gameFolder, moddedFolder, progress);
+            Utils.CopyDirectoryWithoutBepInEx(gameFolder, moddedFolder, progress);
         });
         progress.FinishStep();
         
@@ -108,24 +99,10 @@ public static class Installer
         string iconPath = await GetCustomAssets(steamPath, currentSteamUserId, progress);
         return SteamManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
     }
-
-    public static async Task CleanUpGameFiles(string steamPath, string steamCommon)
-    {
-        foreach (string dir in Directory.GetDirectories(steamCommon, $"{GameName}*", SearchOption.TopDirectoryOnly))
-        {
-            Directory.Delete(dir, true);
-        }
-        
-        await SteamManager.LaunchSteam(steamPath);
-        
-        Process.Start(new ProcessStartInfo($"steam://validate/{SteamGameId}") { UseShellExecute = true });
-
-        await TrackGameDownload(steamCommon);
-    }
     
     private static async Task TrackGameDownload(string steamCommon)
     {
-        var gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", SteamGameId.ToString());
+        string gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", SteamGameId.ToString());
         
         await Task.Delay(3000);
         
@@ -167,10 +144,5 @@ public static class Installer
         }
 
         return string.Empty;
-    }
-
-    public static int getSteamGameId()
-    {
-        return SteamGameId;
     }
 }
