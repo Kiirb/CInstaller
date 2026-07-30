@@ -34,7 +34,7 @@ public partial class MainWindow
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
     }
 
-    private async void CheckUpdate(ProgressReporter progress)
+    private static async Task CheckUpdate(ProgressReporter progress)
     {
         Version currentVersion = Updater.GetCurrentVersion();
         Version? latestVersion = await Updater.GetLatestVersion();
@@ -52,7 +52,6 @@ public partial class MainWindow
             {
                 await Updater.RunUpdate(progress);
                 Application.Current.Shutdown();
-                return;
             }
         }
     }
@@ -61,7 +60,7 @@ public partial class MainWindow
     {
         ProgressReporter progress = new(progressBar, statusLabel);
         
-        CheckUpdate(progress);
+        await CheckUpdate(progress);
         
         string? steamPath = Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))
