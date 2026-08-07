@@ -11,7 +11,7 @@ public static class RemoteManager
 {
     private static readonly HttpClient HttpClient = new();
     private static readonly HttpClient ConfigHttpClient = new();
-    private const string GithubToken = "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";
+    //private const string GithubToken = "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";
     private const string ConfigUrl = "https://gist.github.com/Kiirb/b96f6b5f2268f239fc387222aa3795be/raw";
     
     public static async Task<HttpResponseMessage> FindLatestGithubRelease(string repoOwner, string repoName)
@@ -20,7 +20,6 @@ public static class RemoteManager
 
         if (HttpClient.DefaultRequestHeaders.Authorization == null)
         {
-            HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GithubToken);
             HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
             HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Updater");
         }

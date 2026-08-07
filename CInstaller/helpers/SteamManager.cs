@@ -30,17 +30,72 @@ public static class SteamManager
 
         string content = File.ReadAllText(loginVdfFile);
 
+        // Match each "<steamid64>" { ... } block (blocks in this file don't nest braces).
         Regex userBlock = new Regex(
-            "\"(\\d{17})\"\\s*\\{[^}]*?\"MostRecent\"\\s*\"1\"",
+            "\"(\\d{17})\"\\s*\\{(.*?)\\n\\s*\\}",
             RegexOptions.Singleline
         );
 
-        Match match = userBlock.Match(content);
+        MatchCollection matches = userBlock.Matches(content);
 
-        if (!match.Success)
+        if (matches.Count == 0)
             throw new Exception("No logged-in Steam user found");
 
-        long steamId64 = long.Parse(match.Groups[1].Value);
+        Match? best = null;
+        long bestTimestamp = -1;
+
+        foreach (Match candidate in matches)
+        {
+            string body = candidate.Groups[2].Value;
+
+            // Prefer the account Steam explicitly marks as the most recent login.
+            if (Regex.IsMatch(body, "\"MostRecent\"\\s*\"1\""))
+            {
+                best = candidate;
+                break;
+            }
+        }
+
+        if (best == null)
+        {
+            foreach (Match candidate in matches)
+            {
+                string body = candidate.Groups[2].Value;
+
+                // Fall back to the account Steam will auto-login as.
+                if (Regex.IsMatch(body, "\"AutoLogin\"\\s*\"1\""))
+                {
+                    best = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (best == null)
+        {
+            if (matches.Count == 1)
+            {
+                best = matches[0];
+            }
+            else
+            {
+                // Last resort: pick whichever account logged in most recently by timestamp.
+                foreach (Match candidate in matches)
+                {
+                    Match timestampMatch = Regex.Match(candidate.Groups[2].Value, "\"Timestamp\"\\s*\"(\\d+)\"");
+                    if (timestampMatch.Success && long.Parse(timestampMatch.Groups[1].Value) > bestTimestamp)
+                    {
+                        bestTimestamp = long.Parse(timestampMatch.Groups[1].Value);
+                        best = candidate;
+                    }
+                }
+            }
+        }
+
+        if (best == null)
+            throw new Exception("No logged-in Steam user found");
+
+        long steamId64 = long.Parse(best.Groups[1].Value);
 
         return steamId64 - SteamId64Base;
     }
