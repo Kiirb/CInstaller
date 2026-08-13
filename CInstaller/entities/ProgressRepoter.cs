@@ -33,4 +33,13 @@ public class ProgressReporter(ProgressBar bar, Label label)
     {
         _baseProgress += _stepSize;
     }
+    
+    public void Complete(string message)
+    {
+        bar.Dispatcher.BeginInvoke(() =>
+        {
+            bar.Value = 100;
+            label.Content = message;
+        });
+    }
 }

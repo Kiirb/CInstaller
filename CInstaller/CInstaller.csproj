@@ -3,7 +3,7 @@
     <PropertyGroup>
         <AssemblyName>CInstaller</AssemblyName>
         <ApplicationIcon>CInstaller.ico</ApplicationIcon>
-        <Version>0.1.2</Version>
+        <Version>0.1.3</Version>
         
         <TargetFramework>net8.0-windows</TargetFramework>
         <UseWPF>true</UseWPF>
@@ -16,17 +16,4 @@
         <PublishSingleFile>true</PublishSingleFile>
         <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     </PropertyGroup>
-
-    <ItemGroup>
-      <ApplicationDefinition Include="ui\App.xaml">
-        <Generator>MSBuild:Compile</Generator>
-        <XamlRuntime>Wpf</XamlRuntime>
-        <SubType>Designer</SubType>
-      </ApplicationDefinition>
-    </ItemGroup>
-
-    <ItemGroup>
-      <Page Include="ui\App.xaml" />
-    </ItemGroup>
-
 </Project>
