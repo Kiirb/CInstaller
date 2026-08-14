@@ -1,8 +1,5 @@
-using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
-using System.Net.Http;
-using System.Runtime.CompilerServices;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using CInstaller.entities;
 using CInstaller.helpers;
@@ -77,7 +74,7 @@ public static class Installer
         List<GithubRepo> plugins = await RemoteManager.GetPluginConfig();
 
         int stepPerPlugin = 30 / plugins.Count;
-
+        
         foreach (GithubRepo plugin in plugins)
         {
             progress.NextStep(stepPerPlugin);
@@ -88,16 +85,21 @@ public static class Installer
         
         Console.Out.WriteLine("Finished downloads");
 
+        string projectName = Assembly.GetExecutingAssembly().GetName().Name;
+        string cinstallerAsset = await RemoteManager.FindLatestGithubDownloadAsset("Kiirb", projectName, ".exe");
+        string cinstallerFile = await RemoteManager.DownloadFile(cinstallerAsset, moddedFolder, progress);
+        string newFile = Path.Join(Path.GetDirectoryName(cinstallerFile), projectName + ".exe");
+        File.Move(cinstallerFile, newFile);
+
         return moddedFolder;
     }
 
     public static async Task<bool> AddToSteam(string steamPath, string moddedFolder, ProgressReporter progress)
     {
-        string moddedExeFilePath = Path.Join(moddedFolder, GameName + ".exe");
-        
+        string launchExeFilePath = Path.Join(moddedFolder, Assembly.GetExecutingAssembly().GetName().Name + ".exe");
         long currentSteamUserId = SteamManager.FindCurrentSteamUserId(steamPath);
         string iconPath = await GetCustomAssets(steamPath, currentSteamUserId, progress);
-        return SteamManager.AddShortcut(steamPath, moddedFolder, moddedExeFilePath, iconPath, currentSteamUserId);
+        return SteamManager.AddShortcut(steamPath, moddedFolder, launchExeFilePath, iconPath, currentSteamUserId);
     }
     
     private static async Task TrackGameDownload(string steamCommon)
@@ -132,11 +134,11 @@ public static class Installer
             "{\"nVersion\":1,\"logoPosition\":{\"pinnedPosition\":\"CenterCenter\",\"nWidthPct\":23.704171934260415,\"nHeightPct\":65.2777777777778}}"; //make actual json reader/write if i feel like it
         File.WriteAllText(Path.Join(gridFolderPath, $"{steamGridId}.json"), logoConfig);
         
-        foreach (var asset in assets)
+        foreach ((string url, string fileEnding) asset in assets)
         {
             progress?.NextStep(stepPerAsset);
-            var grid = await RemoteManager.DownloadFile(asset.url, gridFolderPath, progress);
-            var renamedGrid = Path.Join(gridFolderPath, steamGridId + asset.fileEnding);
+            string grid = await RemoteManager.DownloadFile(asset.url, gridFolderPath, progress);
+            string renamedGrid = Path.Join(gridFolderPath, steamGridId + asset.fileEnding);
             File.Move(grid,  renamedGrid, true);
             progress?.FinishStep();
 

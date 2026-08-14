@@ -11,15 +11,15 @@ public partial class App
     {
         base.OnStartup(e);
 
-        await CheckUpdate();
+        //await CheckUpdate();
         
-        if (isLoaderMode())
+        if (IsLoaderMode())
         {
             new Loader().LoaderRun();
         }
         else
         {
-            await new InstallerUI().InstallerUIRun();
+            await new InstallerUi().InstallerUiRun();
         }
     }
     
@@ -39,17 +39,17 @@ public partial class App
 
             if (updateFlag.Equals(MessageBoxResult.Yes))
             {
-                LoadingMenu loadingMenu = new();
-                loadingMenu.Show();
-                await Updater.RunUpdate(loadingMenu.Progress);
+                ProgressUI progressUi = new();
+                progressUi.Show();
+                await Updater.RunUpdate(progressUi.Progress);
                 Current.Shutdown();
             }
         }
     }
 
-    private static bool isLoaderMode()
+    private static bool IsLoaderMode()
     {
-        string exeDir = AppContext.BaseDirectory;
+        string exeDir = Path.GetDirectoryName(Environment.ProcessPath)!;
         return File.Exists(Path.Join(exeDir, Installer.GameName + ".exe"));
     }
 }

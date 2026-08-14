@@ -4,9 +4,9 @@ using CInstaller.helpers;
 
 namespace CInstaller.ui;
 
-public partial class InstallerUI
+public partial class InstallerUi
 {
-    public async Task InstallerUIRun()
+    public async Task InstallerUiRun()
     {
         string? steamPath = Installer.FindSteamPath();
         if (string.IsNullOrEmpty(steamPath))
@@ -37,11 +37,11 @@ public partial class InstallerUI
             }
         }
 
-        LoadingMenu loadingMenu = new();
-        loadingMenu.Show();
+        ProgressUI progressUi = new();
+        progressUi.Show();
 
-        loadingMenu.Progress.Report(0, "Starte Installer");
-        string moddedFolder = await Installer.RunInstaller(loadingMenu.Progress, steamCommon);
+        progressUi.Progress.Report(0, "Starte Installer");
+        string moddedFolder = await Installer.RunInstaller(progressUi.Progress, steamCommon);
         if (string.IsNullOrEmpty(moddedFolder))
         {
             MessageBox.Show(
@@ -52,9 +52,9 @@ public partial class InstallerUI
             );
         }
         
-        bool restartSteamFlag = await Installer.AddToSteam(steamPath, moddedFolder, loadingMenu.Progress);
+        bool restartSteamFlag = await Installer.AddToSteam(steamPath, moddedFolder, progressUi.Progress);
         
-        loadingMenu.Progress.Complete("Installation complete!");
+        progressUi.Progress.Complete("Installation complete!");
 
         if (restartSteamFlag && SteamManager.IsSteamRunning())
         {

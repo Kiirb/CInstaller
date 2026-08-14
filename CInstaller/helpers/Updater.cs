@@ -4,9 +4,8 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 using CInstaller.entities;
-using CInstaller.helpers;
 
-namespace CInstaller;
+namespace CInstaller.helpers;
 
 public static class Updater
 {
@@ -16,11 +15,11 @@ public static class Updater
     
     public static async Task<Version?> GetLatestVersion()
     {
-        ResponseCache = await RemoteManager.FindLatestGithubRelease("Kiirb", "CInstaller");
+        ResponseCache = await RemoteManager.FindLatestGithubRelease("Kiirb", Assembly.GetExecutingAssembly().GetName().Name);
 
-        var json = await ResponseCache.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(json);
-        var latestVersionString = doc.RootElement[0].GetProperty("tag_name").ToString();
+        string json = await ResponseCache.Content.ReadAsStringAsync();
+        JsonDocument doc = JsonDocument.Parse(json);
+        string latestVersionString = doc.RootElement[0].GetProperty("tag_name").ToString();
 
         Version.TryParse(latestVersionString, out var latestVersion);
 
@@ -29,13 +28,13 @@ public static class Updater
 
     public static async Task RunUpdate(ProgressReporter reporter)
     {
-        var url = await RemoteManager.FindLatestGithubDownloadAsset("Kiirb", "CInstaller", ".exe", ResponseCache);
+        string url = await RemoteManager.FindLatestGithubDownloadAsset("Kiirb", Assembly.GetExecutingAssembly().GetName().Name, ".exe", ResponseCache);
         
         reporter.NextStep(100);
-        var newFile = await RemoteManager.DownloadFile(url, Directory.GetCurrentDirectory(), reporter);
+        string newFile = await RemoteManager.DownloadFile(url, Directory.GetCurrentDirectory(), reporter);
         reporter.FinishStep();
 
-        var currentFile = Environment.ProcessPath;
+        string? currentFile = Environment.ProcessPath;
         
         Process.Start(new ProcessStartInfo
         {
