@@ -14,7 +14,7 @@ public static class RemoteManager
     private static readonly HttpClient HttpClient = new();
     private static readonly HttpClient ConfigHttpClient = new();
 
-    private const string GithubToken = "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";
+    private const string GithubToken = "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";
     private const string ConfigUrl = "https://gist.github.com/Kiirb/b96f6b5f2268f239fc387222aa3795be/raw";
     
     public static async Task<HttpResponseMessage> FindLatestGithubRelease(string repoOwner, string repoName)
@@ -41,7 +41,11 @@ public static class RemoteManager
             }
         }
 
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync();
+            throw new Exception($"GitHub API returned {(int)response.StatusCode} {response.StatusCode}: {body}");
+        }
         
         return response;
     }
