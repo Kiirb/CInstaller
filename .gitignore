@@ -3,3 +3,6 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+# Real tokens/secrets — never commit, see *.Secrets.example.cs for the template
+**/*.Secrets.cs

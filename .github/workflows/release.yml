@@ -14,6 +14,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Write GitHub token secrets file
+        run: |
+          $content = @"
+          namespace CInstaller.helpers;
+
+          public static partial class RemoteManager
+          {
+              private const string GithubToken = "${{ secrets.RELEASE_CHECK_TOKEN }}";
+          }
+          "@
+          Set-Content -Path "CInstaller/helpers/RemoteManager.Secrets.cs" -Value $content -Encoding utf8
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
