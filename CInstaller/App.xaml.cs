@@ -39,7 +39,7 @@ public partial class App
         if (latestVersion > currentVersion)
         {
             MessageBoxResult updateFlag = MessageBox.Show(
-                $"Jetzige Version: {currentVersion}\nNeuste Version: {latestVersion}.0\n\nJetzt updaten?",
+                $"Jetzige Version: {currentVersion}\nNeuste Version: {latestVersion}\n\nJetzt updaten?",
                 "CInstaller hat ein update",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question

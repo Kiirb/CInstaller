@@ -26,7 +26,6 @@ public static class Updater
         string url = await RemoteManager.FindLatestGithubDownloadAsset("Kiirb", Assembly.GetExecutingAssembly().GetName().Name, ".exe", ResponseCache);
 
         reporter.NextStep(100);
-        // Download to a scratch folder so it can't collide with the currently-running exe's filename
         string downloadedFile = await RemoteManager.DownloadFile(url, Path.GetTempPath(), reporter);
         reporter.FinishStep();
 
