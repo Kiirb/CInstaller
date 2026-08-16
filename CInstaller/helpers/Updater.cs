@@ -38,10 +38,15 @@ public static class Updater
         File.Move(currentFile, oldFile);
         File.Move(downloadedFile, currentFile);
         
+        int currentPid = Environment.ProcessId;
+        string cleanupScript =
+            $"Wait-Process -Id {currentPid} -ErrorAction SilentlyContinue; " +
+            $"Remove-Item -LiteralPath '{oldFile}' -Force -ErrorAction SilentlyContinue";
+
         Process.Start(new ProcessStartInfo
         {
-            FileName = "cmd.exe",
-            Arguments = $"/c timeout /t 2 /nobreak >nul && del \"{oldFile}\"",
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -WindowStyle Hidden -Command \"{cleanupScript}\"",
             CreateNoWindow = true,
             UseShellExecute = false
         });
