@@ -14,7 +14,7 @@ public static class RemoteManager
     private static readonly HttpClient HttpClient = new();
     private static readonly HttpClient ConfigHttpClient = new();
 
-    private const string GithubToken = "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";
+    private const string GithubToken = "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";
     private const string ConfigUrl = "https://gist.github.com/Kiirb/b96f6b5f2268f239fc387222aa3795be/raw";
     
     public static async Task<HttpResponseMessage> FindLatestGithubRelease(string repoOwner, string repoName)
