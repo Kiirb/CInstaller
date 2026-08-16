@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 using CInstaller.entities;
+using static System.Version;
 
 namespace CInstaller.helpers;
 
@@ -16,14 +17,8 @@ public static class Updater
     public static async Task<Version?> GetLatestVersion()
     {
         ResponseCache = await RemoteManager.FindLatestGithubRelease("Kiirb", Assembly.GetExecutingAssembly().GetName().Name);
-
-        string json = await ResponseCache.Content.ReadAsStringAsync();
-        JsonDocument doc = JsonDocument.Parse(json);
-        string latestVersionString = doc.RootElement[0].GetProperty("tag_name").ToString();
-
-        Version.TryParse(latestVersionString, out var latestVersion);
-
-        return latestVersion;
+        
+        return await RemoteManager.ExtractVersionFromResponse(ResponseCache);
     }
 
     public static async Task RunUpdate(ProgressReporter reporter)

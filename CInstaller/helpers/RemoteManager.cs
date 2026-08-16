@@ -3,7 +3,9 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Windows;
 using CInstaller.entities;
+using static System.Version;
 
 namespace CInstaller.helpers;
 
@@ -30,8 +32,10 @@ public static class RemoteManager
         {
             if (response.Headers.TryGetValues("X-RateLimit-Reset", out var reset))
             {
-                var resetTime = DateTimeOffset.FromUnixTimeSeconds(long.Parse(reset.First()));
-                throw new Exception($"GitHub rate limit exceeded. Try again at {resetTime.LocalDateTime}.");
+                DateTimeOffset resetTime = DateTimeOffset.FromUnixTimeSeconds(long.Parse(reset.First()));
+                int remainingMinutes = (int)Math.Ceiling((resetTime - DateTimeOffset.Now).TotalMinutes);
+                MessageBox.Show($"Github rate-limit erreicht\n\nProbiere es in {remainingMinutes} Minuten erneut", "Rate-Limit erreicht", MessageBoxButton.OK, MessageBoxImage.Error);
+                throw new Exception($"GitHub rate limit exceeded. Try again at {resetTime.LocalDateTime}."); 
             }
         }
 
@@ -60,6 +64,18 @@ public static class RemoteManager
         }
 
         throw new Exception("No matching asset found.");
+    }
+
+    public static async Task<Version?> ExtractVersionFromResponse(HttpResponseMessage response)
+    {
+        string json = await response.Content.ReadAsStringAsync();
+        JsonDocument doc = JsonDocument.Parse(json);
+        var test = doc.RootElement[0];
+        string VersionString = doc.RootElement[0].GetProperty("tag_name").ToString().TrimStart('v', 'V');
+
+        TryParse(VersionString, out Version? version);
+        
+        return version;
     }
 
 

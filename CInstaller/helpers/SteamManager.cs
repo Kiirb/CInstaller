@@ -1,24 +1,38 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 
 namespace CInstaller.helpers;
 
 public static class SteamManager
 {
     private const long SteamId64Base = 76561197960265728L;
+    public const int SteamGameId = 945360;
+    public const string GameName = "Among Us";
 
-    public static string FindSteamPathFromGame(string gamePath)
+    public static string? FindSteamPath()
     {
-        DirectoryInfo? steamFolder = Directory.GetParent(gamePath)?.Parent?.Parent;
+        return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
+    }
 
-        if (steamFolder != null && steamFolder.Name.Equals("Steam", StringComparison.OrdinalIgnoreCase))
-        {
-            return steamFolder.FullName;
-        }
+    public static string FindSteamCommon(string steamPath)
+    {
+        string libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
+        Regex regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
         
-        Console.WriteLine($"SteamManager: findSteamPath: {steamFolder}");
-        return null!;
+        foreach (Match lib in regex.Matches(File.ReadAllText(libraryFolderFile)))
+        {
+            string path = lib.Groups[1].Value.Replace("\\\\", "\\");
+            string appsBlock = lib.Groups[2].Value;
+
+            if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
+            {
+                return Path.Join(path, "steamapps", "common");
+            }
+        }
+        Console.Out.WriteLine("SteamCommon not found");
+        return "";
     }
 
     public static long FindCurrentSteamUserId(string steamPath)
@@ -29,8 +43,7 @@ public static class SteamManager
             throw new ArgumentException("SteamManager: login users.vdf not found");
 
         string content = File.ReadAllText(loginVdfFile);
-
-        // Match each "<steamid64>" { ... } block (blocks in this file don't nest braces).
+        
         Regex userBlock = new Regex(
             "\"(\\d{17})\"\\s*\\{(.*?)\\n\\s*\\}",
             RegexOptions.Singleline
@@ -47,8 +60,7 @@ public static class SteamManager
         foreach (Match candidate in matches)
         {
             string body = candidate.Groups[2].Value;
-
-            // Prefer the account Steam explicitly marks as the most recent login.
+            
             if (Regex.IsMatch(body, "\"MostRecent\"\\s*\"1\""))
             {
                 best = candidate;
@@ -61,8 +73,7 @@ public static class SteamManager
             foreach (Match candidate in matches)
             {
                 string body = candidate.Groups[2].Value;
-
-                // Fall back to the account Steam will auto-login as.
+                
                 if (Regex.IsMatch(body, "\"AutoLogin\"\\s*\"1\""))
                 {
                     best = candidate;
@@ -79,7 +90,6 @@ public static class SteamManager
             }
             else
             {
-                // Last resort: pick whichever account logged in most recently by timestamp.
                 foreach (Match candidate in matches)
                 {
                     Match timestampMatch = Regex.Match(candidate.Groups[2].Value, "\"Timestamp\"\\s*\"(\\d+)\"");

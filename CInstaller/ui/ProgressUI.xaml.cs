@@ -36,26 +36,4 @@ public partial class ProgressUI
 
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
     }
-
-    private static async Task CheckUpdate(ProgressReporter progress)
-    {
-        Version currentVersion = Updater.GetCurrentVersion();
-        Version? latestVersion = await Updater.GetLatestVersion();
-        
-        if (latestVersion > currentVersion)
-        {
-            MessageBoxResult updateFlag = MessageBox.Show(
-                $"Jetzige Version: {currentVersion}\nNeuste Version: {latestVersion}.0\n\nJetzt updaten?",
-                "Update Gefunden",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question
-            );
-
-            if (updateFlag.Equals(MessageBoxResult.Yes))
-            {
-                await Updater.RunUpdate(progress);
-                Application.Current.Shutdown();
-            }
-        }
-    }
 }

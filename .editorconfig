@@ -1,3 +1,8 @@
 [*.cs]
 # CS4014: Because this call is not awaited, execution of the current method continues before the call is completed
 dotnet_diagnostic.CS4014.severity = none
+
+# CS8604: Possible null reference argument.
+dotnet_diagnostic.CS8604.severity = none
+
+dotnet_diagnostic.CA1860.severity = none

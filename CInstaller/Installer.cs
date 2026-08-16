@@ -1,46 +1,106 @@
 using System.IO;
+using System.Net.Http;
 using System.Reflection;
-using System.Text.RegularExpressions;
+using System.Windows;
 using CInstaller.entities;
 using CInstaller.helpers;
-using Microsoft.Win32;
+using CInstaller.ui;
 
 namespace CInstaller;
 
 public static class Installer
 {
-    
-    public const int SteamGameId = 945360;
-    public const string GameName = "Among Us";
-
-    public static string? FindSteamPath()
+    public static async Task InstallerRun()
     {
-        return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)?.ToString();
-    }
-
-    public static string FindSteamCommon(string steamPath)
-    {
-        string libraryFolderFile = Path.Join(steamPath, "steamapps", "libraryfolders.vdf");
-        Regex regex = new Regex("\"path\"\\s+\"([^\"]+)\"[\\s\\S]*?\"apps\"\\s*\\{([\\s\\S]*?)\\}", RegexOptions.Multiline);
+        ProgressUI progressUi = new();
+        progressUi.Show();
         
-        foreach (Match lib in regex.Matches(File.ReadAllText(libraryFolderFile)))
+        string? steamPath = SteamManager.FindSteamPath();
+        if (string.IsNullOrEmpty(steamPath))
         {
-            string path = lib.Groups[1].Value.Replace("\\\\", "\\");
-            string appsBlock = lib.Groups[2].Value;
+            MessageBox.Show(
+                "Steam konnte nicht gefunden werden",
+                "Find Path Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+            return;
+        }
 
-            if (Regex.IsMatch(appsBlock, $"\"{SteamGameId}\""))
+        string steamCommon = SteamManager.FindSteamCommon(steamPath);
+
+        if (string.IsNullOrEmpty(steamCommon) || !Directory.Exists(Path.Join(steamCommon, SteamManager.GameName)))
+        {
+            MessageBoxResult installGameFlag = MessageBox.Show(
+                "Among us ist nicht installiert, installiere es und starte den Installer neu",
+                "Not installed",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Question
+            );
+
+            if (installGameFlag.Equals(MessageBoxResult.OK))
             {
-                return Path.Join(path, "steamapps", "common");
+                await SteamManager.InstallGame(steamPath, SteamManager.SteamGameId);
             }
         }
-        Console.Out.WriteLine("SteamCommon not found");
-        return "";
+        
+        progressUi.Progress.Report(0, "Starte Installer");
+        string moddedFolder = await Install(progressUi.Progress, steamCommon);
+        if (string.IsNullOrEmpty(moddedFolder))
+        {
+            MessageBox.Show(
+                "Plugin Ordner konnte nicht gefunden werden",
+                "Install Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+        }
+        
+        bool restartSteamFlag = await AddToSteam(steamPath, moddedFolder, progressUi.Progress);
+
+        ConfigSave(steamPath, steamCommon, moddedFolder);
+        
+        progressUi.Progress.Complete("Installation complete!");
+
+        if (restartSteamFlag && SteamManager.IsSteamRunning())
+        {
+            MessageBoxResult result = MessageBox.Show(
+                "Steam Muss neu gestartet werden um alle änderungen zu übernehmen\n\nJetzt neustarten?",
+                "Confirmation",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Question
+            );
+
+            if (result == MessageBoxResult.OK)
+            {
+                await SteamManager.RestartSteam(steamPath);
+            }
+        }
+        else
+        {
+            MessageBox.Show(
+                "Installation Fertig!",
+                "Install Done",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information
+            );
+        }
+        
+        Application.Current.Shutdown();
     }
-    
-    public static async Task<string> RunInstaller(ProgressReporter progress, string steamCommon)
+
+    private static void ConfigSave(string steamFolder, string steamCommon, string gameFolder)
     {
-        string gameFolder = Path.Join(steamCommon, GameName);
-        string moddedFolder = Path.Join(steamCommon, GameName + " Modded");
+        ConfigHandler.SteamFolder = steamFolder;
+        ConfigHandler.SteamCommon = steamCommon;
+        ConfigHandler.GameFolder = gameFolder;
+        ConfigHandler.Save(gameFolder);
+    }
+
+    private static async Task<string> Install(ProgressReporter progress, string steamCommon)
+    {
+        string gameFolder = Path.Join(steamCommon, SteamManager.GameName);
+        string moddedFolder = Path.Join(steamCommon, SteamManager.GameName + " Modded");
         
         progress.NextStep(20);
         await Task.Run(() =>
@@ -63,55 +123,49 @@ public static class Installer
         progress.FinishStep();
         
         string pluginFolder = Path.Join(moddedFolder, "BepinEx", "plugins");
-        if (!Directory.Exists(pluginFolder))
-        {
-            Console.Write(pluginFolder + " not found");
-            //maybe throw error here instead
-            return "";
-        }
-                
+        if (!Directory.Exists(pluginFolder)) Directory.CreateDirectory(pluginFolder);
         File.Delete(Path.Join(pluginFolder, "AUnlocker.dll"));
+        
         List<GithubRepo> plugins = await RemoteManager.GetPluginConfig();
 
-        int stepPerPlugin = 30 / plugins.Count;
+        int stepPerPlugin = 27 / plugins.Count;
         
         foreach (GithubRepo plugin in plugins)
         {
             progress.NextStep(stepPerPlugin);
-            string pluginUrl = await RemoteManager.FindLatestGithubDownloadAsset(plugin.RepoOwner, plugin.RepoName, plugin.SearchPattern);
-            await RemoteManager.DownloadFile(pluginUrl, pluginFolder, progress);
+            HttpResponseMessage pluginResponse = await RemoteManager.FindLatestGithubRelease(plugin.RepoOwner, plugin.RepoName);
+            Version? pluginVersion = await RemoteManager.ExtractVersionFromResponse(pluginResponse);
+            string pluginUrl = await RemoteManager.FindLatestGithubDownloadAsset(plugin.RepoOwner, plugin.RepoName, ".dll", pluginResponse);
+            string pluginFilePath = await RemoteManager.DownloadFile(pluginUrl, pluginFolder, progress);
+
+            plugin.version = pluginVersion!;
+            plugin.filePath = pluginFilePath;
+            ConfigHandler.PluginList.Add(plugin);
             progress.FinishStep();
         }
         
+        progress.NextStep(3);
+        string projectName = Assembly.GetExecutingAssembly().GetName().Name!;
+        string loaderFile = Path.Join(moddedFolder, projectName + ".exe");
+        if (!File.Exists(loaderFile))
+        {
+            string cinstallerAsset = await RemoteManager.FindLatestGithubDownloadAsset("Kiirb", projectName, ".exe");
+            string cinstallerFile = await RemoteManager.DownloadFile(cinstallerAsset, moddedFolder, progress);
+            File.Move(cinstallerFile, loaderFile);
+        }
+        progress.FinishStep();
+
         Console.Out.WriteLine("Finished downloads");
-
-        string projectName = Assembly.GetExecutingAssembly().GetName().Name;
-        string cinstallerAsset = await RemoteManager.FindLatestGithubDownloadAsset("Kiirb", projectName, ".exe");
-        string cinstallerFile = await RemoteManager.DownloadFile(cinstallerAsset, moddedFolder, progress);
-        string newFile = Path.Join(Path.GetDirectoryName(cinstallerFile), projectName + ".exe");
-        File.Move(cinstallerFile, newFile);
-
+        
         return moddedFolder;
     }
 
-    public static async Task<bool> AddToSteam(string steamPath, string moddedFolder, ProgressReporter progress)
+    private static async Task<bool> AddToSteam(string steamPath, string moddedFolder, ProgressReporter progress)
     {
         string launchExeFilePath = Path.Join(moddedFolder, Assembly.GetExecutingAssembly().GetName().Name + ".exe");
         long currentSteamUserId = SteamManager.FindCurrentSteamUserId(steamPath);
         string iconPath = await GetCustomAssets(steamPath, currentSteamUserId, progress);
         return SteamManager.AddShortcut(steamPath, moddedFolder, launchExeFilePath, iconPath, currentSteamUserId);
-    }
-    
-    private static async Task TrackGameDownload(string steamCommon)
-    {
-        string gameDownloadFolder = Path.Join(Directory.GetParent(steamCommon)?.ToString(), "downloading", SteamGameId.ToString());
-        
-        await Task.Delay(3000);
-        
-        while (Directory.Exists(gameDownloadFolder))
-        {
-            await Task.Delay(3000);
-        }
     }
     
     private static async Task<string> GetCustomAssets(string steamPath, long currentSteamUserId, ProgressReporter progress)

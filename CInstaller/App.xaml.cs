@@ -11,22 +11,30 @@ public partial class App
     {
         base.OnStartup(e);
 
-        //await CheckUpdate();
-        
+        await CheckUpdate();
+
         if (IsLoaderMode())
         {
-            new Loader().LoaderRun();
+            await Loader.LoaderRun();
         }
         else
         {
-            await new InstallerUi().InstallerUiRun();
+            await Installer.InstallerRun();
         }
     }
     
     private static async Task CheckUpdate()
     {
         Version currentVersion = Updater.GetCurrentVersion();
-        Version? latestVersion = await Updater.GetLatestVersion();
+        Version? latestVersion;
+        try
+        {
+            latestVersion = await Updater.GetLatestVersion();
+        }
+        catch (Exception e)
+        {
+            return;
+        }
         
         if (latestVersion > currentVersion)
         {
@@ -48,8 +56,7 @@ public partial class App
     }
 
     private static bool IsLoaderMode()
-    {
-        string exeDir = Path.GetDirectoryName(Environment.ProcessPath)!;
-        return File.Exists(Path.Join(exeDir, Installer.GameName + ".exe"));
+    { 
+        return File.Exists(ConfigHandler.ConfigPath);
     }
 }

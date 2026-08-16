@@ -5,12 +5,12 @@ namespace CInstaller.entities;
 public class ProgressReporter(ProgressBar bar, Label label)
 {
     private double _baseProgress;
-    private double _stepSize;
+    private double _stepSize = 100;
     private double _lastProgress = -1;
 
     public void Report(double progress, string message)
     {
-        var total = _baseProgress + progress * _stepSize / 100;
+        double total = _baseProgress + progress * _stepSize / 100;
 
         if (Math.Abs(total - _lastProgress) < 0.5)
             return;
