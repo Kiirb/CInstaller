@@ -45,16 +45,7 @@ public static class Installer
         }
         
         progressUi.Progress.Report(0, "Starte Installer");
-        string moddedFolder = await Install(progressUi.Progress, steamCommon);
-        if (string.IsNullOrEmpty(moddedFolder))
-        {
-            MessageBox.Show(
-                "Plugin Ordner konnte nicht gefunden werden",
-                "Install Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error
-            );
-        }
+        string moddedFolder = await createModdedInstall(progressUi.Progress, steamCommon);
         
         bool restartSteamFlag = await AddToSteam(steamPath, moddedFolder, progressUi.Progress);
 
@@ -97,12 +88,12 @@ public static class Installer
         ConfigHandler.Save(gameFolder);
     }
 
-    private static async Task<string> Install(ProgressReporter progress, string steamCommon)
+    private static async Task<string> createModdedInstall(ProgressReporter progress, string steamCommon)
     {
         string gameFolder = Path.Join(steamCommon, SteamManager.GameName);
         string moddedFolder = Path.Join(steamCommon, SteamManager.GameName + " Modded");
         
-        progress.NextStep(20);
+        progress.NextStep(40);
         await Task.Run(() =>
         {
             Utils.CopyDirectoryWithoutBepInEx(gameFolder, moddedFolder, progress);
@@ -114,7 +105,7 @@ public static class Installer
         string filePath = await RemoteManager.DownloadFile(baseModUrl, moddedFolder, progress);
         progress.FinishStep();
         
-        progress.NextStep(10);
+        progress.NextStep(25);
         await Task.Run(() =>
         {
             Utils.ExtractZip(filePath, moddedFolder, progress);
@@ -126,25 +117,7 @@ public static class Installer
         if (!Directory.Exists(pluginFolder)) Directory.CreateDirectory(pluginFolder);
         File.Delete(Path.Join(pluginFolder, "AUnlocker.dll"));
         
-        List<GithubRepo> plugins = await RemoteManager.GetPluginConfig();
-
-        int stepPerPlugin = 27 / plugins.Count;
-        
-        foreach (GithubRepo plugin in plugins)
-        {
-            progress.NextStep(stepPerPlugin);
-            HttpResponseMessage pluginResponse = await RemoteManager.FindLatestGithubRelease(plugin.RepoOwner, plugin.RepoName);
-            Version? pluginVersion = await RemoteManager.ExtractVersionFromResponse(pluginResponse);
-            string pluginUrl = await RemoteManager.FindLatestGithubDownloadAsset(plugin.RepoOwner, plugin.RepoName, ".dll", pluginResponse);
-            string pluginFilePath = await RemoteManager.DownloadFile(pluginUrl, pluginFolder, progress);
-
-            plugin.version = pluginVersion!;
-            plugin.filePath = pluginFilePath;
-            ConfigHandler.PluginList.Add(plugin);
-            progress.FinishStep();
-        }
-        
-        progress.NextStep(3);
+        progress.NextStep(5);
         string projectName = Assembly.GetExecutingAssembly().GetName().Name!;
         string loaderFile = Path.Join(moddedFolder, projectName + ".exe");
         if (!File.Exists(loaderFile))

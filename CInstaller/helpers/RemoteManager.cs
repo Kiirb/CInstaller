@@ -86,7 +86,7 @@ public static partial class RemoteManager
 
     public static async Task<string> DownloadFile(string url, string outputPath, ProgressReporter progress)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+        HttpRequestMessage request = new (HttpMethod.Get, url);
         request.Headers.Accept.ParseAdd("application/octet-stream");
 
         HttpResponseMessage response = await HttpClient.SendAsync(request);
