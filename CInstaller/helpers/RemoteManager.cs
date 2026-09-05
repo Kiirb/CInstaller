@@ -20,18 +20,20 @@ public static partial class RemoteManager
     {
         string githubUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases";
 
-        if (HttpClient.DefaultRequestHeaders.Authorization == null)
+        if (HttpClient.DefaultRequestHeaders.UserAgent.Count == 0)
         {
-            HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
             HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Updater");
-            HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GithubToken);
         }
         
-        HttpResponseMessage response = await HttpClient.GetAsync(githubUrl);
+        HttpRequestMessage request = new(HttpMethod.Get, githubUrl);                                                                                                                                                     
+        request.Headers.Accept.ParseAdd("application/vnd.github+json");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", GithubToken);   
+        
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
 
         if (response.StatusCode == HttpStatusCode.Forbidden)
         {
-            if (response.Headers.TryGetValues("X-RateLimit-Reset", out var reset))
+            if (response.Headers.TryGetValues("X-RateLimit-Reset", out IEnumerable<string>? reset))
             {
                 DateTimeOffset resetTime = DateTimeOffset.FromUnixTimeSeconds(long.Parse(reset.First()));
                 int remainingMinutes = (int)Math.Ceiling((resetTime - DateTimeOffset.Now).TotalMinutes);

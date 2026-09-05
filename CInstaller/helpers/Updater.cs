@@ -2,10 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
-using System.Text.Json;
 using CInstaller.entities;
-using static System.Version;
-
 namespace CInstaller.helpers;
 
 public static class Updater

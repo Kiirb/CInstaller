@@ -93,6 +93,8 @@ public static class Installer
         string gameFolder = Path.Join(steamCommon, SteamManager.GameName);
         string moddedFolder = Path.Join(steamCommon, SteamManager.GameName + " Modded");
         
+        Directory.Delete(moddedFolder, true);
+        
         progress.NextStep(40);
         await Task.Run(() =>
         {

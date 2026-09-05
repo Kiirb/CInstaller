@@ -20,6 +20,8 @@ public static class Loader
         }
         catch {}
         
+        DeleteUnusedPlugins();
+        
         ConfigHandler.Save();
         
         string gameExePath = Path.Join(ConfigHandler.GameFolder, SteamManager.GameName + ".exe");
@@ -84,6 +86,22 @@ public static class Loader
                 remotePlugin.filePath = pluginFilePath;
                 ConfigHandler.PluginList.Add(remotePlugin);
                 progressUi.Progress.FinishStep();
+            }
+        }
+    }
+
+    private static void DeleteUnusedPlugins()
+    {
+        string pluginFolder = Path.Join(ConfigHandler.GameFolder, "BepInEx", "plugins");
+        if (!Directory.Exists(pluginFolder)) return;
+
+        HashSet<string> pluginPaths = [.. ConfigHandler.PluginList.Select(p => p.filePath)];
+
+        foreach (string filePath in Directory.GetFiles(pluginFolder))
+        {
+            if (!pluginPaths.Contains(filePath))
+            {
+                File.Delete(filePath);
             }
         }
     }

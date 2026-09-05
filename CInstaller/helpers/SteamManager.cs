@@ -193,9 +193,34 @@ public static class SteamManager
         return false;
     }
     
-    public static async Task LaunchSteam(string steamPath)
+    private static void DeleteIfShortcutExists(Dictionary<string, object> rootMap, string newGameFolderPath, string newGameExePath)
     {
-        var steamExe = Path.Join(steamPath, "steam.exe");
+        Dictionary<string, object> shortcutMap = (Dictionary<string, object>)rootMap["shortcuts"];
+        
+        for (int i = 0; i < shortcutMap.Count; i++)
+        //foreach (object value in shortcutMap.Values)
+        {
+            Dictionary<string, object> game = (Dictionary<string, object>)shortcutMap[i.ToString()];
+            
+            string? exeRaw = game.ContainsKey("Exe") ? game["Exe"].ToString() : null;
+            string? dirRaw = game.ContainsKey("StartDir") ? game["StartDir"].ToString() : null;
+
+            if (exeRaw == null || dirRaw == null)
+                continue;
+
+            exeRaw = exeRaw.Replace("\"", "");
+
+            if (exeRaw.Equals(newGameExePath, StringComparison.OrdinalIgnoreCase) ||
+                dirRaw.Equals(newGameFolderPath, StringComparison.OrdinalIgnoreCase))
+            {
+                shortcutMap.Remove(i.ToString());
+            }
+        }
+    }
+
+    private static async Task LaunchSteam(string steamPath)
+    {
+        string steamExe = Path.Join(steamPath, "steam.exe");
         if  (!File.Exists(steamExe)) return;
 
         if (!IsSteamRunning())
@@ -213,7 +238,7 @@ public static class SteamManager
     {
         if (!SteamManager.IsSteamRunning()) return;
         
-        var steamExe = Path.Combine(steamPath, "steam.exe");
+        string steamExe = Path.Combine(steamPath, "steam.exe");
 
         if (!File.Exists(steamExe)) return;
 
@@ -231,11 +256,12 @@ public static class SteamManager
 
     public static bool AddShortcut(string steamPath, string newGameFolderPath, string newGameExePath, string icon, long currentSteamUserId)
     {
-        var shortcutVdfFile = Path.Combine(steamPath, "userdata", currentSteamUserId.ToString(), "config", "shortcuts.vdf");
+        string shortcutVdfFile = Path.Combine(steamPath, "userdata", currentSteamUserId.ToString(), "config", "shortcuts.vdf");
         
-        var rootMap = ParseShortcuts(shortcutVdfFile);
+        Dictionary<string, object> rootMap = ParseShortcuts(shortcutVdfFile);
 
-        if (ShortcutExists(rootMap, newGameFolderPath, newGameExePath)) return false;
+        //if (ShortcutExists(rootMap, newGameFolderPath, newGameExePath)) return true;
+        DeleteIfShortcutExists(rootMap, newGameFolderPath, newGameExePath);
         
         AddNewGameMap(rootMap, newGameFolderPath, newGameExePath, icon);
 
